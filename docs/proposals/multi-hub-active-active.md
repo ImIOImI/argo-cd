@@ -189,9 +189,12 @@ sends.
 
 1. **Baseline lab** (`hack/multi-hub-lab`): stock Argo on two hubs, one spoke.
    Run experiments E1–E5 and measure churn and duplicate hooks. *Status:
-   scripts written, not yet run (kind not installed in the dev box).*
+   done, see [research/2026-11-14-baseline-stock-argo.md](../../research/2026-11-14-baseline-stock-argo.md).*
 2. **C2 first**: the operation lease alone should remove duplicate syncs and
-   duplicate hooks. It is the smallest change that's useful.
+   duplicate hooks. It is the smallest change that's useful. *Status:
+   implemented (`controller/multihub`); removes duplicate full syncs, doesn't
+   stop skew flapping. See
+   [research/2026-11-14-c2-operation-lease.md](../../research/2026-11-14-c2-operation-lease.md).*
 3. **C1**: revision pin. Re-run E2 and expect zero flapping.
 4. **C3**: kill hub-a mid-sync, including during a running PreSync hook,
    and expect hub-b to adopt the hook rather than run it again.
