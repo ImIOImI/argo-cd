@@ -20,6 +20,30 @@ both run auto-sync on the same Application?
 
 Raw data: [data/2026-11-14-baseline](data/2026-11-14-baseline)
 
+## How it was run
+
+All scripts are in `hack/multi-hub-lab/` and were run from that directory,
+on WSL2 with docker 29.4.3, kind v0.30.0 and kubectl v1.34.1. Links are pinned
+to the commit each script was at when it was used.
+
+| Step | Command | Script (pinned) |
+|---|---|---|
+| Bring up the lab | `./up.sh` | [`up.sh` @ e26421477](https://github.com/ImIOImI/argo-cd/blob/e26421477/hack/multi-hub-lab/up.sh) |
+| Fix for the first fetch timing out (run by hand on both hubs, then added to `up.sh`) | timeout patch + controller restart | [`up.sh` @ e78ab670f](https://github.com/ImIOImI/argo-cd/blob/e78ab670f/hack/multi-hub-lab/up.sh), lines 45–50 |
+| Wait for both hubs to sync | `./wait-synced.sh` | [`wait-synced.sh` @ c09328a9f](https://github.com/ImIOImI/argo-cd/blob/c09328a9f/hack/multi-hub-lab/wait-synced.sh) |
+| Sample spoke + hubs (background, whole session) | `rm -f observe.log; INTERVAL=2 ./observe.sh` | [`observe.sh` @ e26421477](https://github.com/ImIOImI/argo-cd/blob/e26421477/hack/multi-hub-lab/observe.sh) |
+| E1: steady state | no action, 4 min | — |
+| E2: one commit, self-heal on | `./bump.sh` (pushed `12c0494`) | [`bump.sh` @ e26421477](https://github.com/ImIOImI/argo-cd/blob/e26421477/hack/multi-hub-lab/bump.sh) |
+| Sync timeline (R2 table) | `AFTER=2026-11-14T12:00 ./syncs.sh` | [`syncs.sh` @ c09328a9f](https://github.com/ImIOImI/argo-cd/blob/c09328a9f/hack/multi-hub-lab/syncs.sh) |
+| E4: self-heal off, one commit | `./selfheal.sh off && ./bump.sh` (pushed `f3e8959`) | [`selfheal.sh` @ c09328a9f](https://github.com/ImIOImI/argo-cd/blob/c09328a9f/hack/multi-hub-lab/selfheal.sh) |
+| Save raw data | `./collect.sh ../../research/data/2026-11-14-baseline` | [`collect.sh` @ c09328a9f](https://github.com/ImIOImI/argo-cd/blob/c09328a9f/hack/multi-hub-lab/collect.sh) |
+
+**Provenance:** `wait-synced.sh`, `syncs.sh`, `selfheal.sh` and
+`collect.sh` were first run as one-off commands during the session. They
+were saved as scripts afterwards (c09328a9f) with the same commands, and
+`syncs.sh` was re-run to check that it reproduces the R2 table exactly.
+Everything else was run from the pinned commit as written.
+
 ---
 
 ## R0. Initial sync: both hubs ran the PreSync hook
