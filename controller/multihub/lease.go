@@ -66,6 +66,8 @@ type Config struct {
 	// other hub's sync was still in flight is stale; the window lets this hub
 	// re-compare against the finished state first (research R0).
 	SettleWindow time.Duration
+	// Telemetry controls logs, Kubernetes Events and metrics (telemetry.go).
+	Telemetry Telemetry
 }
 
 func ConfigFromEnv() Config {
@@ -74,7 +76,24 @@ func ConfigFromEnv() Config {
 		Namespace:     env.StringFromEnv(EnvNamespace, DefaultNamespace),
 		LeaseDuration: env.ParseDurationFromEnv(EnvLeaseDuration, DefaultLeaseDuration, time.Second, time.Hour),
 		SettleWindow:  env.ParseDurationFromEnv(EnvSettleWindow, DefaultSettleWindow, 0, time.Hour),
+		Telemetry:     TelemetryFromEnv(),
 	}
+}
+
+// Reporter applies the telemetry policy; nil when disabled.
+func (c *Coordinator) Reporter() *Reporter {
+	if c == nil {
+		return nil
+	}
+	return c.reporter
+}
+
+// Telemetry returns the telemetry settings (defaults when disabled).
+func (c *Coordinator) Telemetry() Telemetry {
+	if c == nil {
+		return DefaultTelemetry()
+	}
+	return c.cfg.Telemetry
 }
 
 // Key identifies an Application across hubs. Hubs that share an Application
@@ -115,8 +134,26 @@ func (k Key) LeaseName() string {
 	return strings.Trim(prefix, "-.") + "-" + hex.EncodeToString(sum[:])[:16]
 }
 
+// Event classifies what happened to a lease. Used for logs, Kubernetes
+// Events and the decision metric's label.
+type Event string
+
+const (
+	EventAcquired     Event = "acquired"      // free (or new) lease taken
+	EventRenewed      Event = "renewed"       // holder extended its own lease
+	EventTakeover     Event = "takeover"      // another hub's lease had expired and was taken
+	EventHeld         Event = "held"          // denied: another hub holds the lease
+	EventSettling     Event = "settling"      // denied: another hub released it moments ago (auto-sync only)
+	EventReleased     Event = "released"      // holder gave it up
+	EventLost         Event = "lost"          // an in-progress operation found its lease taken over
+	EventError        Event = "error"         // could not reach or update the lease
+	EventReleaseError Event = "release_error" // could not release (it will expire)
+	EventDisabled     Event = "disabled"      // coordination is off
+)
+
 // Decision is the outcome of an acquire attempt.
 type Decision struct {
+	Event   Event
 	Granted bool
 	// Holder is the hub holding the lease when it was not granted, or the
 	// hub that just released it when the settle window denied it.
@@ -139,6 +176,8 @@ type Coordinator struct {
 
 	nsMu      sync.Mutex
 	nsEnsured map[string]bool
+
+	reporter *Reporter
 }
 
 // New returns nil when coordination is disabled. All methods are safe on a
@@ -153,7 +192,7 @@ func New(cfg Config, clients ClientFunc) *Coordinator {
 	if cfg.LeaseDuration <= 0 {
 		cfg.LeaseDuration = DefaultLeaseDuration
 	}
-	return &Coordinator{cfg: cfg, clients: clients, now: time.Now, nsEnsured: map[string]bool{}}
+	return &Coordinator{cfg: cfg, clients: clients, now: time.Now, nsEnsured: map[string]bool{}, reporter: NewReporter(cfg.Telemetry)}
 }
 
 func (c *Coordinator) Enabled() bool { return c != nil }
@@ -179,7 +218,7 @@ func (c *Coordinator) AcquireForAutoSync(ctx context.Context, server string, key
 
 func (c *Coordinator) acquire(ctx context.Context, server string, key Key, settle bool) (Decision, error) {
 	if c == nil {
-		return Decision{Granted: true, Reason: "multihub disabled"}, nil
+		return Decision{Event: EventDisabled, Granted: true, Reason: "multihub disabled"}, nil
 	}
 	client, err := c.clients(server)
 	if err != nil {
@@ -202,7 +241,7 @@ func (c *Coordinator) acquire(ctx context.Context, server string, key Key, settl
 			if err != nil {
 				return Decision{}, fmt.Errorf("multihub: create lease %s: %w", name, err)
 			}
-			return granted(created, "acquired (new lease)"), nil
+			return granted(created, EventAcquired, "acquired (new lease)"), nil
 		}
 		if err != nil {
 			return Decision{}, fmt.Errorf("multihub: get lease %s: %w", name, err)
@@ -220,10 +259,11 @@ func (c *Coordinator) acquire(ctx context.Context, server string, key Key, settl
 			if err != nil {
 				return Decision{}, fmt.Errorf("multihub: renew lease %s: %w", name, err)
 			}
-			return granted(updated, "renewed"), nil
+			return granted(updated, EventRenewed, "renewed"), nil
 
 		case holder != "" && !c.expired(lease, now):
 			return Decision{
+				Event:      EventHeld,
 				Holder:     holder,
 				RetryAfter: c.remaining(lease, now),
 				Reason:     "operation lease held by " + holder,
@@ -236,6 +276,7 @@ func (c *Coordinator) acquire(ctx context.Context, server string, key Key, settl
 			if at, ok := parseTime(lease.Annotations[AnnotationReleasedAt]); ok && by != "" && by != c.cfg.HubID {
 				if wait := at.Add(c.cfg.SettleWindow).Sub(now); wait > 0 {
 					return Decision{
+						Event:      EventSettling,
 						Holder:     by,
 						RetryAfter: wait,
 						Reason:     fmt.Sprintf("settling after an operation by %s", by),
@@ -243,9 +284,9 @@ func (c *Coordinator) acquire(ctx context.Context, server string, key Key, settl
 				}
 			}
 		}
-		reason := "acquired"
+		event, reason := EventAcquired, "acquired"
 		if holder != "" {
-			reason = "acquired (lease held by " + holder + " expired)"
+			event, reason = EventTakeover, "acquired (lease held by "+holder+" expired)"
 		}
 		take(lease, c.cfg.HubID, c.cfg.LeaseDuration, now)
 		updated, err := leases.Update(ctx, lease, metav1.UpdateOptions{})
@@ -255,7 +296,7 @@ func (c *Coordinator) acquire(ctx context.Context, server string, key Key, settl
 		if err != nil {
 			return Decision{}, fmt.Errorf("multihub: acquire lease %s: %w", name, err)
 		}
-		return granted(updated, reason), nil
+		return granted(updated, event, reason), nil
 	}
 	return Decision{}, fmt.Errorf("multihub: lease %s: too many conflicting updates", name)
 }
@@ -365,12 +406,12 @@ func take(lease *coordinationv1.Lease, hub string, d time.Duration, now time.Tim
 	lease.Spec.LeaseTransitions = &transitions
 }
 
-func granted(lease *coordinationv1.Lease, reason string) Decision {
+func granted(lease *coordinationv1.Lease, event Event, reason string) Decision {
 	var gen int32
 	if lease.Spec.LeaseTransitions != nil {
 		gen = *lease.Spec.LeaseTransitions
 	}
-	return Decision{Granted: true, Holder: holderOf(lease), Generation: gen, Reason: reason}
+	return Decision{Event: event, Granted: true, Holder: holderOf(lease), Generation: gen, Reason: reason}
 }
 
 func holderOf(lease *coordinationv1.Lease) string {

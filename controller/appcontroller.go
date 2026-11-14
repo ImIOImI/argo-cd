@@ -331,10 +331,7 @@ func NewApplicationController(
 	ctrl.deploymentInformer = deploymentInformer
 	ctrl.appStateManager = appStateManager
 	ctrl.stateCache = stateCache
-	ctrl.multihub = multihub.New(multihub.ConfigFromEnv(), ctrl.multihubClient)
-	if ctrl.multihub.Enabled() {
-		log.Infof("multihub coordination enabled: hub id %q", ctrl.multihub.HubID())
-	}
+	ctrl.multihubInit()
 
 	return &ctrl, nil
 }
@@ -1690,7 +1687,8 @@ func (ctrl *ApplicationController) processRequestedAppOperation(app *appv1.Appli
 	// multihub: hold the operation lease for every pass of a real (non-dry-run)
 	// operation. Renewing here keeps it alive for the operation's duration.
 	if ctrl.multihub.Enabled() && (app.Operation.Sync == nil || !app.Operation.Sync.DryRun) {
-		decision, err := ctrl.multihubAcquire(ctx, app, false)
+		// Logging, Events and metrics for every decision happen in multihubAcquire.
+		decision, err := ctrl.multihubAcquire(ctx, app, multihub.PathOperation)
 		switch {
 		case err == nil && !decision.Granted && isOperationInProgress(app):
 			// We were running this operation, and another hub now holds the
@@ -1700,14 +1698,9 @@ func (ctrl *ApplicationController) processRequestedAppOperation(app *appv1.Appli
 			state.Phase = synccommon.OperationError
 			state.Message = fmt.Sprintf("Operation stopped: %s; this hub's lease expired", decision.Reason)
 			ctrl.setOperationState(ctx, app, state)
-			logCtx.Warn(state.Message)
+			ctrl.multihubLost(ctx, app, decision, state.Message)
 			return
 		case err != nil || !decision.Granted:
-			reason := decision.Reason
-			if err != nil {
-				reason = err.Error()
-			}
-			logCtx.Infof("Waiting to start operation: %s", reason)
 			requeueAfter = multihubOperationWait
 			requeuedForRetry = true
 			return
@@ -3146,19 +3139,17 @@ func (ctrl *ApplicationController) autoSync(ctx context.Context, app *appv1.Appl
 
 	// multihub: only one hub may run an operation for this app at a time.
 	if ctrl.multihub.Enabled() {
-		decision, err := ctrl.multihubAcquire(ctx, app, true)
+		// Logging, Events and metrics for every decision happen in multihubAcquire.
+		decision, err := ctrl.multihubAcquire(ctx, app, multihub.PathAutoSync)
 		ts.AddCheckpoint("multihub_acquire_ms")
 		if err != nil {
-			logCtx.WithError(err).Warn("Skipping auto-sync: multihub operation lease unavailable")
 			return &appv1.ApplicationCondition{Type: appv1.ApplicationConditionSyncError, Message: err.Error()}, 0
 		}
 		if !decision.Granted {
 			recheck := multihubRecheckDelay(decision)
-			logCtx.Infof("Skipping auto-sync: %s (rechecking in %v)", decision.Reason, recheck)
 			ctrl.requestAppRefresh(app.QualifiedName(), CompareWithLatest.Pointer(), &recheck)
 			return nil, 0
 		}
-		logCtx.Infof("multihub: operation lease %s, generation %d", decision.Reason, decision.Generation)
 	}
 
 	appIf := ctrl.applicationClientset.ArgoprojV1alpha1().Applications(app.Namespace)
