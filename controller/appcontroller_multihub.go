@@ -18,6 +18,7 @@ import (
 	"github.com/argoproj/argo-cd/v3/reposerver/apiclient"
 	applog "github.com/argoproj/argo-cd/v3/util/app/log"
 	"github.com/argoproj/argo-cd/v3/util/argo"
+	utilio "github.com/argoproj/argo-cd/v3/util/io"
 )
 
 const (
@@ -38,12 +39,13 @@ const (
 )
 
 // multihubInit is called once from NewApplicationController.
-func (ctrl *ApplicationController) multihubInit(_ apiclient.Clientset) {
+func (ctrl *ApplicationController) multihubInit(repoClientset apiclient.Clientset) {
 	cfg := multihub.ConfigFromEnv()
 	ctrl.multihub = multihub.New(cfg, ctrl.multihubClient)
 	if !ctrl.multihub.Enabled() {
 		return
 	}
+	ctrl.multihubCommitTime = ctrl.multihubRepoCommitTime(repoClientset)
 	t := cfg.Telemetry
 	if t.Metrics {
 		if err := multihub.RegisterMetrics(ctrlmetrics.Registry); err != nil {
@@ -223,11 +225,15 @@ func multihubRecheckDelay(d multihub.Decision) time.Duration {
 //
 // It passes the compared revision through unchanged (no pin) when
 // coordination is off, the revision is empty, the app has several sources
-// (not pinned yet), no commit-time lookup is configured, or the commit time
+// (not pinned yet), the source isn't git (helm/OCI), no commit-time lookup
+// is configured, or the commit time
 // or the pin can't be read: a hub that can't agree behaves like a single hub.
 func (ctrl *ApplicationController) multihubPinRevision(ctx context.Context, app *appv1.Application, compared string) (string, bool) {
 	if !ctrl.multihub.Enabled() || compared == "" || app.Spec.HasMultipleSources() || ctrl.multihubCommitTime == nil {
 		return compared, false
+	}
+	if src := app.Spec.GetSource(); src.IsHelm() || src.IsOCI() {
+		return compared, false // commit time only orders git revisions
 	}
 	commitTime, err := ctrl.multihubCommitTime(ctx, app, compared)
 	if err != nil {
@@ -248,9 +254,26 @@ func (ctrl *ApplicationController) multihubPinRevision(ctx context.Context, app 
 }
 
 // multihubRepoCommitTime looks a git revision's commit time up through the
-// repo-server. STUB (red): returns a zero time; implemented in the next commit.
-func (ctrl *ApplicationController) multihubRepoCommitTime(_ apiclient.Clientset) func(context.Context, *appv1.Application, string) (time.Time, error) {
-	return func(context.Context, *appv1.Application, string) (time.Time, error) {
-		return time.Time{}, nil
+// repo-server (revision metadata, cached there), like the hydrator does.
+func (ctrl *ApplicationController) multihubRepoCommitTime(repoClientset apiclient.Clientset) func(context.Context, *appv1.Application, string) (time.Time, error) {
+	return func(ctx context.Context, app *appv1.Application, revision string) (time.Time, error) {
+		src := app.Spec.GetSource()
+		repo, err := ctrl.db.GetRepository(ctx, src.RepoURL, app.Spec.Project)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("multihub: repository %q: %w", src.RepoURL, err)
+		}
+		closer, client, err := repoClientset.NewRepoServerClient()
+		if err != nil {
+			return time.Time{}, fmt.Errorf("multihub: repo-server client: %w", err)
+		}
+		defer utilio.Close(closer)
+		md, err := client.GetRevisionMetadata(ctx, &apiclient.RepoServerRevisionMetadataRequest{Repo: repo, Revision: revision})
+		if err != nil {
+			return time.Time{}, fmt.Errorf("multihub: revision metadata for %s: %w", revision, err)
+		}
+		if md == nil || md.Date == nil || md.Date.IsZero() {
+			return time.Time{}, fmt.Errorf("multihub: revision %s has no commit date", revision)
+		}
+		return md.Date.Time, nil
 	}
 }
