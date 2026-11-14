@@ -64,3 +64,6 @@
 {"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: application status is Synced","project":"default","time":"2026-11-14T12:08:25Z"}
 {"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: application status is Synced","project":"default","time":"2026-11-14T12:09:40Z"}
 {"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: application status is Synced","project":"default","time":"2026-11-14T12:10:34Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: application status is Synced","project":"default","time":"2026-11-14T12:11:53Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: application status is Synced","project":"default","time":"2026-11-14T12:13:11Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: application status is Synced","project":"default","time":"2026-11-14T12:14:09Z"}

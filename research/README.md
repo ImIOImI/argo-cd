@@ -26,5 +26,5 @@ each coordination change (C1–C6 in the design doc) lands.
 | Time the hubs disagree after a commit (E2) | ~4m50s | ≈ 0 (bounded by the lease) |
 | Spoke shows the *old* generation after a commit | possible: last write raced at 12:02:32 | never |
 | Hook runs per full sync started by both hubs (initial sync) | 2 | 1 |
-| Self-heal off (E4) | *pending* | — |
+| Syncs per commit, self-heal off (E4) | 1 (hub-b skips), but drift is never corrected | 1, with self-heal on |
 | Manual rollback survives on the other hub (E5) | *not run yet* | yes |

@@ -113,10 +113,30 @@ Every sync the controllers started (from `Initialized new operation`):
 
 ## R3 (E4). Self-heal off
 
-*Pending: run started 12:07:48Z (generation 2→3, `selfHeal: false` on
-both hubs).* Hypothesis H1: without self-heal, `alreadyAttemptedSync` makes
-hub-b skip, so there's at most one extra sync per hub per commit and no
-flapping.
+`./selfheal.sh off && ./bump.sh` at 12:07:48Z (generation 2→3, `f3e8959`),
+then watched for 6 minutes. **Hypothesis H1 confirmed.**
+
+`AFTER=2026-11-14T12:07 ./syncs.sh`:
+```
+== hub-a
+2026-11-14T12:08:11Z rev=f3e8959 selfHealAttempt=0
+== hub-b
+```
+
+- **1 sync for 1 commit**, plus 1 hook run (`lab-presync-f3e8959-presync-1794658091`).
+  ConfigMap ended at generation 3.
+- hub-b did see the spoke as OutOfSync against its old commit, but it
+  declined to act:
+  `12:08:25Z Skipping auto-sync: most recent sync already to [12c0494…]`
+  (the `alreadyAttemptedSync` path in `autoSync`).
+- hub-b then caught up and both hubs reported `Synced` on the branch's
+  current HEAD, without hub-b ever syncing.
+
+**But this isn't a fix.** With self-heal off, real drift (someone running
+`kubectl edit` on the spoke) is never corrected by either hub, which defeats
+goal 2. What R3 shows is that self-heal is exactly what turns revision skew
+into flapping. The revision pin (C1) has to make self-heal safe, not
+remove it.
 
 ## R4 (E5). Manual rollback on one hub
 

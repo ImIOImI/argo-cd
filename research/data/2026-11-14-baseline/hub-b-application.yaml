@@ -6,10 +6,10 @@ metadata:
     kubectl.kubernetes.io/last-applied-configuration: |
       {"apiVersion":"argoproj.io/v1alpha1","kind":"Application","metadata":{"annotations":{"argocd.argoproj.io/manifest-generate-paths":"."},"name":"lab-app","namespace":"argocd"},"spec":{"destination":{"name":"spoke","namespace":"lab"},"project":"default","source":{"path":"hack/multi-hub-lab/app","repoURL":"https://github.com/ImIOImI/argo-cd.git","targetRevision":"spike/multi-hub"},"syncPolicy":{"automated":{"prune":true,"selfHeal":true},"syncOptions":["CreateNamespace=true"]}}}
   creationTimestamp: "2026-11-14T11:51:28Z"
-  generation: 54
+  generation: 55
   name: lab-app
   namespace: argocd
-  resourceVersion: "2493"
+  resourceVersion: "2820"
   uid: 64f85783-7706-4cd3-9d81-d868dfc09cc9
 spec:
   destination:
@@ -90,7 +90,7 @@ status:
         path: hack/multi-hub-lab/app
         repoURL: https://github.com/ImIOImI/argo-cd.git
         targetRevision: spike/multi-hub
-  reconciledAt: "2026-11-14T12:08:53Z"
+  reconciledAt: "2026-11-14T12:13:19Z"
   resourceHealthSource: appTree
   resources:
   - kind: ConfigMap
@@ -143,5 +143,5 @@ status:
         path: hack/multi-hub-lab/app
         repoURL: https://github.com/ImIOImI/argo-cd.git
         targetRevision: spike/multi-hub
-    revision: f3e8959e5c67a9be7da0d4f3fc58a86abf38d7be
+    revision: c09328a9f5ec8a57082019b31c80e66230ea43c8
     status: Synced
