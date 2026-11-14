@@ -1,0 +1,25 @@
+apiVersion: v1
+items:
+- apiVersion: coordination.k8s.io/v1
+  kind: Lease
+  metadata:
+    annotations:
+      multihub.argoproj.io/application: multi-hub-lab/lab-app
+      multihub.argoproj.io/released-at: "2026-11-14T13:15:56.081792363Z"
+      multihub.argoproj.io/released-by: hub-b
+    creationTimestamp: "2026-11-14T13:08:02Z"
+    labels:
+      app.kubernetes.io/managed-by: argocd-multihub
+    name: multi-hub-lab.lab-app
+    namespace: argocd-coordination
+    resourceVersion: "7224"
+    uid: c30fa3ab-fada-4626-ac01-ace3189d3deb
+  spec:
+    acquireTime: "2026-11-14T13:15:55.644113Z"
+    holderIdentity: ""
+    leaseDurationSeconds: 60
+    leaseTransitions: 11
+    renewTime: "2026-11-14T13:15:55.684394Z"
+kind: List
+metadata:
+  resourceVersion: ""

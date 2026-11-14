@@ -1,0 +1,6 @@
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: operation lease held by hub-a (rechecking in 15s)","project":"default","time":"2026-11-14T13:19:10Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: operation lease held by hub-a (rechecking in 15s)","project":"default","time":"2026-11-14T13:19:11Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: operation lease held by hub-a (rechecking in 15s)","project":"default","time":"2026-11-14T13:19:23Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: operation lease held by hub-a (rechecking in 15s)","project":"default","time":"2026-11-14T13:19:24Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: application status is Synced","project":"default","time":"2026-11-14T13:19:25Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: application status is Synced","project":"default","time":"2026-11-14T13:19:28Z"}

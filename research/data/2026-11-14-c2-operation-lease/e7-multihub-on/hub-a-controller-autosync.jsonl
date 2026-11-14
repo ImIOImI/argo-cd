@@ -1,0 +1,16 @@
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: application status is Synced","project":"default","time":"2026-11-14T13:16:41Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: application status is Synced","project":"default","time":"2026-11-14T13:17:31Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: application status is Synced","project":"default","time":"2026-11-14T13:18:03Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: application status is Synced","project":"default","time":"2026-11-14T13:18:38Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: application status is Synced","project":"default","time":"2026-11-14T13:18:44Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"multihub: operation lease acquired, generation 12","project":"default","time":"2026-11-14T13:19:10Z"}
+{"application":"lab-app","dest-namespace":"lab","dest-server":"","level":"info","msg":"Initiated automated sync to '314d2dfb1cb06d809a16d0519a4d1b65952814a9'","reason":"OperationStarted","time":"2026-11-14T13:19:10Z","type":"Normal"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Initiated automated sync to '314d2dfb1cb06d809a16d0519a4d1b65952814a9'","project":"default","time":"2026-11-14T13:19:10Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Initialized new operation: {\u0026SyncOperation{Revision:314d2dfb1cb06d809a16d0519a4d1b65952814a9,Prune:true,DryRun:false,SyncStrategy:nil,Resources:[]SyncOperationResource{},Source:\u0026ApplicationSource{RepoURL:https://github.com/ImIOImI/argo-cd.git,Path:hack/multi-hub-lab/app,TargetRevision:spike/multi-hub,Helm:nil,Kustomize:nil,Directory:nil,Plugin:nil,Chart:,Ref:,Name:,TagPrefix:,},Manifests:[],SyncOptions:[CreateNamespace=true],Sources:[]ApplicationSource{},Revisions:[],SelfHealAttemptsCount:0,} { true} [] {5 nil false}}","project":"default","time":"2026-11-14T13:19:10Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: another operation is in progress","project":"default","time":"2026-11-14T13:19:11Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: another operation is in progress","project":"default","time":"2026-11-14T13:19:23Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: another operation is in progress","project":"default","time":"2026-11-14T13:19:25Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: another operation is in progress","project":"default","time":"2026-11-14T13:19:25Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: application status is Synced","project":"default","time":"2026-11-14T13:19:25Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: application status is Synced","project":"default","time":"2026-11-14T13:20:38Z"}
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"Skipping auto-sync: application status is Synced","project":"default","time":"2026-11-14T13:21:19Z"}

@@ -1,0 +1,153 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/manifest-generate-paths: .
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"argoproj.io/v1alpha1","kind":"Application","metadata":{"annotations":{"argocd.argoproj.io/manifest-generate-paths":"."},"name":"lab-app","namespace":"argocd"},"spec":{"destination":{"name":"spoke","namespace":"lab"},"project":"default","source":{"path":"hack/multi-hub-lab/app","repoURL":"https://github.com/ImIOImI/argo-cd.git","targetRevision":"spike/multi-hub"},"syncPolicy":{"automated":{"prune":true,"selfHeal":true},"syncOptions":["CreateNamespace=true"]}}}
+  creationTimestamp: "2026-11-14T11:51:28Z"
+  generation: 203
+  name: lab-app
+  namespace: argocd
+  resourceVersion: "8137"
+  uid: a6648036-bb38-426b-acb3-970246c744e3
+spec:
+  destination:
+    name: spoke
+    namespace: lab
+  project: default
+  source:
+    path: hack/multi-hub-lab/app
+    repoURL: https://github.com/ImIOImI/argo-cd.git
+    targetRevision: spike/multi-hub
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+status:
+  controllerNamespace: argocd
+  health:
+    lastTransitionTime: "2026-11-14T13:16:01Z"
+    status: Healthy
+  history:
+  - deployStartedAt: "2026-11-14T11:55:19Z"
+    deployedAt: "2026-11-14T11:55:37Z"
+    id: 0
+    initiatedBy:
+      automated: true
+    revision: e2642147705ee62c0b23e7f4703f1a6ffaa55342
+    source:
+      path: hack/multi-hub-lab/app
+      repoURL: https://github.com/ImIOImI/argo-cd.git
+      targetRevision: spike/multi-hub
+  - deployStartedAt: "2026-11-14T12:00:46Z"
+    deployedAt: "2026-11-14T12:01:03Z"
+    id: 1
+    initiatedBy:
+      automated: true
+    revision: 12c0494876440e205bb0fbcb190b4720d956480a
+    source:
+      path: hack/multi-hub-lab/app
+      repoURL: https://github.com/ImIOImI/argo-cd.git
+      targetRevision: spike/multi-hub
+  - deployStartedAt: "2026-11-14T12:08:11Z"
+    deployedAt: "2026-11-14T12:08:25Z"
+    id: 2
+    initiatedBy:
+      automated: true
+    revision: f3e8959e5c67a9be7da0d4f3fc58a86abf38d7be
+    source:
+      path: hack/multi-hub-lab/app
+      repoURL: https://github.com/ImIOImI/argo-cd.git
+      targetRevision: spike/multi-hub
+  - deployStartedAt: "2026-11-14T13:08:02Z"
+    deployedAt: "2026-11-14T13:08:21Z"
+    id: 3
+    initiatedBy:
+      automated: true
+    revision: 90d6c6a5446c20f7756957131d1daa9ca5ea9382
+    source:
+      path: hack/multi-hub-lab/app
+      repoURL: https://github.com/ImIOImI/argo-cd.git
+      targetRevision: spike/multi-hub
+  operationState:
+    finishedAt: "2026-11-14T13:15:45Z"
+    message: successfully synced (all tasks run)
+    operation:
+      initiatedBy:
+        automated: true
+      retry:
+        limit: 5
+      sync:
+        autoHealAttemptsCount: 5
+        prune: true
+        resources:
+        - kind: ConfigMap
+          name: lab-config
+        revision: 07e28cdae8c63714594196dc7a8f763212a7f298
+        source:
+          path: hack/multi-hub-lab/app
+          repoURL: https://github.com/ImIOImI/argo-cd.git
+          targetRevision: spike/multi-hub
+        syncOptions:
+        - CreateNamespace=true
+    phase: Succeeded
+    retryCount: 1
+    startedAt: "2026-11-14T13:15:35Z"
+    syncResult:
+      resources:
+      - group: ""
+        hookPhase: Running
+        kind: Namespace
+        message: namespace/lab created
+        name: lab
+        namespace: ""
+        status: Synced
+        syncPhase: PreSync
+        version: v1
+      - group: ""
+        hookPhase: Running
+        kind: ConfigMap
+        message: configmap/lab-config created
+        name: lab-config
+        namespace: lab
+        status: Synced
+        syncPhase: Sync
+        version: v1
+      revision: 07e28cdae8c63714594196dc7a8f763212a7f298
+      source:
+        path: hack/multi-hub-lab/app
+        repoURL: https://github.com/ImIOImI/argo-cd.git
+        targetRevision: spike/multi-hub
+  reconciledAt: "2026-11-14T13:18:44Z"
+  resourceHealthSource: appTree
+  resources:
+  - kind: ConfigMap
+    name: lab-config
+    namespace: lab
+    status: Synced
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: lab-pause
+    namespace: lab
+    status: Synced
+    version: v1
+  sourceHydrator: {}
+  sourceType: Directory
+  summary:
+    images:
+    - registry.k8s.io/pause:3.10
+  sync:
+    comparedTo:
+      destination:
+        name: spoke
+        namespace: lab
+      source:
+        path: hack/multi-hub-lab/app
+        repoURL: https://github.com/ImIOImI/argo-cd.git
+        targetRevision: spike/multi-hub
+    revision: 07e28cdae8c63714594196dc7a8f763212a7f298
+    status: Synced
