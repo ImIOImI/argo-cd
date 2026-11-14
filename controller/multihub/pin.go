@@ -51,6 +51,7 @@ const (
 	PinAdvanced PinEvent = "advanced" // the candidate is newer; the pin moved to it
 	PinAdopted  PinEvent = "adopted"  // the pin is newer (or tied); use the pin, not the candidate
 	PinDisabled PinEvent = "disabled" // coordination is off; the candidate passes through
+	PinError    PinEvent = "error"    // the commit time or the pin couldn't be read or written
 )
 
 type PinDecision struct {

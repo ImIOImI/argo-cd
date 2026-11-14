@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	log "github.com/sirupsen/logrus"
+	logtest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -295,4 +298,89 @@ func TestMultihubInitWiresCommitTimeLookupOnlyWhenEnabled(t *testing.T) {
 	got, err := ctrl.multihubCommitTime(t.Context(), app, "abc123")
 	require.NoError(t, err)
 	assert.True(t, got.Equal(pinT1))
+}
+
+// captureLogs swaps the standard logger's hooks for a test hook, and lowers
+// its level to debug so debug entries reach the hook (logrus only fires
+// hooks for enabled levels), for the duration of the test.
+func captureLogs(t *testing.T) *logtest.Hook {
+	t.Helper()
+	hook := &logtest.Hook{}
+	oldHooks := log.StandardLogger().ReplaceHooks(log.LevelHooks{})
+	oldLevel := log.GetLevel()
+	log.SetLevel(log.DebugLevel)
+	log.AddHook(hook)
+	t.Cleanup(func() {
+		log.StandardLogger().ReplaceHooks(oldHooks)
+		log.SetLevel(oldLevel)
+	})
+	return hook
+}
+
+func pinEntries(hook *logtest.Hook, event string) []*log.Entry {
+	var out []*log.Entry
+	for _, e := range hook.AllEntries() {
+		if e.Data["multihub.path"] == "pin" && e.Data["multihub.event"] == event {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+func TestMultihubPinRevisionReportsAdoption(t *testing.T) {
+	app := pinTestApp()
+	f := newMultihubPinFixture(t, &fakeData{apps: []runtime.Object{app, &defaultProj}}, app)
+	f.pinFromHubA(t, "new222", pinT2)
+	hook := captureLogs(t)
+	adopted := multihub.DecisionsTotal.WithLabelValues("hub-b", "pin", "adopted")
+	before := testutil.ToFloat64(adopted)
+
+	f.ctrl.multihubPinRevision(t.Context(), app, "old111")
+
+	assert.InDelta(t, before+1, testutil.ToFloat64(adopted), 0, "metric counts the adoption")
+	entries := pinEntries(hook, "adopted")
+	require.Len(t, entries, 1)
+	e := entries[0]
+	assert.Equal(t, log.InfoLevel, e.Level)
+	assert.Equal(t, "hub-b", e.Data["multihub.hub"])
+	assert.Equal(t, "old111", e.Data["multihub.candidate_revision"])
+	assert.Equal(t, "new222", e.Data["multihub.pinned_revision"])
+	assert.Equal(t, "hub-a", e.Data["multihub.pinned_by"])
+	assert.Equal(t, app.Name, e.Data["application"])
+}
+
+func TestMultihubPinRevisionReportsAdvanceAndKeep(t *testing.T) {
+	app := pinTestApp()
+	f := newMultihubPinFixture(t, &fakeData{apps: []runtime.Object{app, &defaultProj}}, app)
+	f.pinFromHubA(t, "old111", pinT1)
+	hook := captureLogs(t)
+
+	f.ctrl.multihubPinRevision(t.Context(), app, "new222")
+	f.ctrl.multihubPinRevision(t.Context(), app, "new222")
+
+	adv := pinEntries(hook, "advanced")
+	require.Len(t, adv, 1)
+	assert.Equal(t, log.InfoLevel, adv[0].Level)
+	assert.Equal(t, "new222", adv[0].Data["multihub.pinned_revision"])
+	kept := pinEntries(hook, "kept")
+	require.Len(t, kept, 1)
+	assert.Equal(t, log.DebugLevel, kept[0].Level)
+}
+
+func TestMultihubPinRevisionReportsLookupErrorOnce(t *testing.T) {
+	app := pinTestApp()
+	f := newMultihubPinFixture(t, &fakeData{apps: []runtime.Object{app, &defaultProj}}, app)
+	hook := captureLogs(t)
+	errs := multihub.DecisionsTotal.WithLabelValues("hub-b", "pin", "error")
+	before := testutil.ToFloat64(errs)
+
+	f.ctrl.multihubPinRevision(t.Context(), app, "unknown999")
+	f.ctrl.multihubPinRevision(t.Context(), app, "unknown999")
+
+	assert.InDelta(t, before+2, testutil.ToFloat64(errs), 0, "every failure is counted")
+	entries := pinEntries(hook, "error")
+	require.Len(t, entries, 2)
+	assert.Equal(t, log.WarnLevel, entries[0].Level, "first failure warns")
+	assert.Equal(t, log.DebugLevel, entries[1].Level, "a repeat of the same failure is collapsed")
+	assert.Contains(t, entries[0].Data["multihub.reason"], "unknown999")
 }

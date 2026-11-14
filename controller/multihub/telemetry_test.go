@@ -137,3 +137,30 @@ func TestDecisionsCarryEvents(t *testing.T) {
 	d, _ = disabled.AcquireForAutoSync(ctx, server, key)
 	assert.Equal(t, EventDisabled, d.Event)
 }
+
+func TestPinPlanLevels(t *testing.T) {
+	on := NewReporter(Telemetry{LogLifecycle: true, Events: true})
+	off := NewReporter(Telemetry{})
+	for _, ev := range []PinEvent{PinPinned, PinAdvanced, PinAdopted} {
+		assert.Equal(t, log.InfoLevel, on.PlanPin("a", ev, "").LogLevel, ev)
+		assert.Equal(t, log.DebugLevel, off.PlanPin("a", ev, "").LogLevel, "%s with LOG_LIFECYCLE off", ev)
+		assert.False(t, on.PlanPin("a", ev, "").Event, "pin moves raise no Kubernetes Event")
+	}
+	assert.Equal(t, log.DebugLevel, on.PlanPin("a", PinKept, "").LogLevel, "agreeing with the pin is routine")
+}
+
+func TestPinPlanErrorsWarnOnChange(t *testing.T) {
+	r := NewReporter(Telemetry{LogDenials: DenialLogOff})
+	assert.Equal(t, log.WarnLevel, r.PlanPin("a", PinError, "lookup failed").LogLevel)
+	assert.Equal(t, log.DebugLevel, r.PlanPin("a", PinError, "lookup failed").LogLevel, "same error collapsed")
+	assert.Equal(t, log.WarnLevel, r.PlanPin("a", PinError, "forbidden").LogLevel, "new error reported")
+	assert.Equal(t, log.WarnLevel, r.PlanPin("b", PinError, "forbidden").LogLevel, "tracked per app")
+
+	r.PlanPin("a", PinKept, "") // recovering resets the dedup
+	assert.Equal(t, log.WarnLevel, r.PlanPin("a", PinError, "forbidden").LogLevel)
+
+	all := NewReporter(Telemetry{LogDenials: DenialLogAll})
+	for range 2 {
+		assert.Equal(t, log.WarnLevel, all.PlanPin("a", PinError, "lookup failed").LogLevel)
+	}
+}

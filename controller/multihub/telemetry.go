@@ -170,3 +170,9 @@ func RegisterMetrics(reg prometheus.Registerer) error {
 	}
 	return err
 }
+
+// PlanPin decides how to report a revision-pin decision for app.
+// STUB (red): always debug; implemented in the next commit.
+func (r *Reporter) PlanPin(_ string, _ PinEvent, _ string) Report {
+	return Report{LogLevel: log.DebugLevel}
+}
