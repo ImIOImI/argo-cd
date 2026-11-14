@@ -16,6 +16,11 @@ active/active on two hubs against the same Applications and spoke clusters.
 
 Raw data for each note is in `data/<date>-<slug>/`.
 
+**Process:** from `fb2b65383` on, all implementation is test-driven, with a
+red test commit before each green one, proven by `hack/tdd/red-green.sh`
+(rules in `CLAUDE.md`). The C2 lease and C2 telemetry notes describe code
+written **test-after**, before that rule existed.
+
 ## Running scoreboard
 
 What the fork has to fix. Each column is re-measured as each coordination
