@@ -15,6 +15,7 @@ for h in hub-a hub-b; do
   echo "== $h"
   kubectl --context "kind-$h" -n argocd logs statefulset/argocd-application-controller --since="$SINCE" 2>/dev/null \
     | grep '"msg":"Initialized new operation' \
-    | sed -E 's/.*Revision:([0-9a-f]{7}).*SelfHealAttemptsCount:([0-9]+).*"time":"([^"]+)".*/\3 rev=\1 selfHealAttempt=\2/' \
+    | sed -E -e 's/.*Revision:([0-9a-f]{7}).*SelfHealAttemptsCount:([0-9]+).*"time":"([^"]+)".*/\3 rev=\1 selfHealAttempt=\2/' \
+             -e 's/.*Revision:,.*SelfHealAttemptsCount:([0-9]+).*"time":"([^"]+)".*/\2 rev=(target) selfHealAttempt=\1/' \
     | awk -v after="$AFTER" '$1 >= after'
 done
