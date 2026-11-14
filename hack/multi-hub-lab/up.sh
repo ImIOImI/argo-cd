@@ -42,6 +42,12 @@ install_argocd() {
       \"application.resourceTrackingMethod\": \"annotation\",
       \"timeout.reconciliation\": \"${reconcile}\"
     }}"
+  # The lab app lives in the (large) argo-cd fork. The first full fetch takes
+  # longer than the default ~90s git/exec timeout, so raise both; later
+  # fetches are incremental.
+  kubectl --context "$ctx" -n argocd patch configmap argocd-cmd-params-cm --type merge \
+    -p '{"data":{"controller.repo.server.timeout.seconds":"900"}}'
+  kubectl --context "$ctx" -n argocd set env deployment/argocd-repo-server ARGOCD_EXEC_TIMEOUT=15m
   kubectl --context "$ctx" -n argocd rollout restart statefulset/argocd-application-controller
   kubectl --context "$ctx" -n argocd rollout restart deployment/argocd-repo-server
   kubectl --context "$ctx" -n argocd rollout status statefulset/argocd-application-controller --timeout=300s
