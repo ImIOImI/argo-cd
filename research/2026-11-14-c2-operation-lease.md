@@ -187,3 +187,5 @@ is the R0 situation from the baseline, on demand.
 - Known gap: operations that fail before reaching the final
   `setOperationState` (e.g. a retry-schedule error) don't release the lease.
   It expires after 60s instead.
+
+**Update (later the same day):** the third item (an operation started by hand waiting behind another hub's lease) is now verified live. See [C2 telemetry, R1](2026-11-14-c2-telemetry.md#r1-v1-defaults). The logging gaps raised after this note are addressed there too.

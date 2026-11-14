@@ -1,0 +1,4 @@
+== hub-a
+2026-11-14T16:27:02Z rev=167d509 selfHealAttempt=0
+== hub-b
+2026-11-14T16:27:16Z rev=(target) selfHealAttempt=0

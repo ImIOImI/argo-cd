@@ -1,0 +1,8 @@
+== hub-a
+16:27:01 info  acquired  auto-sync hub-a  13  multihub: operation lease acquired (generation 13)
+16:27:16 info  released  operation hub-a  -   multihub: released operation lease
+== hub-b
+16:27:01 info  held      auto-sync hub-a  -   Skipping auto-sync: operation lease held by hub-a (rechecking in 15s)
+16:27:02 info  held      operation hub-a  -   Waiting to start operation: operation lease held by hub-a
+16:27:16 info  acquired  operation hub-b  14  multihub: operation lease acquired (generation 14)
+16:27:32 info  released  operation hub-b  -   multihub: released operation lease

@@ -1,0 +1,10 @@
+== hub-a
+argocd_multihub_lease_decisions_total{event="acquired",hub="hub-a",path="auto-sync"} 1
+argocd_multihub_lease_decisions_total{event="released",hub="hub-a",path="operation"} 1
+argocd_multihub_lease_decisions_total{event="renewed",hub="hub-a",path="operation"} 4
+== hub-b
+argocd_multihub_lease_decisions_total{event="acquired",hub="hub-b",path="operation"} 1
+argocd_multihub_lease_decisions_total{event="held",hub="hub-b",path="auto-sync"} 2
+argocd_multihub_lease_decisions_total{event="held",hub="hub-b",path="operation"} 2
+argocd_multihub_lease_decisions_total{event="released",hub="hub-b",path="operation"} 1
+argocd_multihub_lease_decisions_total{event="renewed",hub="hub-b",path="operation"} 4

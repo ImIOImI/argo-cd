@@ -1,0 +1,5 @@
+== hub-a
+LAST                   TYPE     REASON               COUNT   MESSAGE
+== hub-b
+LAST                   TYPE     REASON                     COUNT   MESSAGE
+2026-11-14T16:27:02Z   Normal   MultihubOperationWaiting   1       Waiting to start operation: operation lease held by hub-a

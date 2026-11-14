@@ -1,0 +1,8 @@
+== hub-a
+16:30:08 info  acquired  auto-sync hub-a  15  multihub: operation lease acquired (generation 15)
+16:30:08 info  renewed   operation hub-a  15  multihub: operation lease renewed (generation 15)
+16:30:10 info  renewed   operation hub-a  15  multihub: operation lease renewed (generation 15)
+16:30:10 info  renewed   operation hub-a  15  multihub: operation lease renewed (generation 15)
+16:30:20 info  renewed   operation hub-a  15  multihub: operation lease renewed (generation 15)
+16:30:21 info  released  operation hub-a  -   multihub: released operation lease
+== hub-b

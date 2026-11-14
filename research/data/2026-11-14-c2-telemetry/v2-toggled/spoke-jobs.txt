@@ -1,0 +1,8 @@
+NAME                                     STATUS     COMPLETIONS   DURATION   AGE     CONTAINERS   IMAGES         SELECTOR
+lab-presync-167d509-presync-1794673622   Complete   1/1           8s         4m55s   hook         busybox:1.36   batch.kubernetes.io/controller-uid=49fa0193-f307-451b-adce-df76896fdb3b
+lab-presync-167d509-presync-1794673636   Complete   1/1           8s         4m41s   hook         busybox:1.36   batch.kubernetes.io/controller-uid=c15c6e24-e296-4704-8ec4-9a777d76f6c4
+lab-presync-314d2df-presync-1794662350   Complete   1/1           12s        3h12m   hook         busybox:1.36   batch.kubernetes.io/controller-uid=7c5f8948-58a6-4aa4-8dee-b9992151baba
+lab-presync-47b03d6-presync-1794673808   Complete   1/1           11s        109s    hook         busybox:1.36   batch.kubernetes.io/controller-uid=ead2f4d6-ddfd-4266-98ca-f35f70aed687
+lab-presync-47b03d6-presync-1794673821   Complete   1/1           8s         96s     hook         busybox:1.36   batch.kubernetes.io/controller-uid=75dc3044-fb09-4ac0-9d52-8bf00f47391d
+lab-presync-659a0c4-presync-1794662866   Complete   1/1           9s         3h4m    hook         busybox:1.36   batch.kubernetes.io/controller-uid=9f34f880-7e39-4ef7-bb8a-2c5edfa4ae7c
+lab-presync-9f433aa-presync-1794662710   Complete   1/1           12s        3h6m    hook         busybox:1.36   batch.kubernetes.io/controller-uid=250bf26d-60b7-4ef7-bebd-a7727ec64a25

@@ -12,6 +12,7 @@ active/active on two hubs against the same Applications and spoke clusters.
 |------|------|---------|
 | 2026-11-14 | [Baseline: stock Argo CD on two hubs](2026-11-14-baseline-stock-argo.md) | Stock v3.6.1 churns for ~2 min on every commit with self-heal on (11 syncs for 1 commit), and starts duplicate full syncs, with hooks, when both hubs see OutOfSync together. With no change to rendered manifests, nothing gets written. A manual rollback on one hub is reverted by the other within 1s while the first hub reports success. |
 | 2026-11-14 | [C2: operation lease on the destination cluster](2026-11-14-c2-operation-lease.md) | A per-app Lease on the spoke serializes operations: when both hubs discover a commit together, 1 hub syncs (2 with the lease off). Skew flapping drops only from 11 to 9 syncs, now taking turns instead of overlapping, so the revision pin (C1) is still required. |
+| 2026-11-14 | [C2 telemetry: logs, Events, metrics + settings](2026-11-14-c2-telemetry.md) | Every lease decision is a structured log line, a metric sample and, for takeover, lost lease, errors and waiting operations, a Kubernetes Event. Repeated refusals collapse to one line per change. Five env settings quiet or expand routine output, but can't silence warnings. Verified live with defaults and with settings switched; also the first live test of a manual sync waiting behind another hub's lease. |
 
 Raw data for each note is in `data/<date>-<slug>/`.
 
