@@ -1,0 +1,19 @@
+# A PreSync hook with generateName. Every Job this creates on the spoke is one
+# hook execution, so counting them shows whether both hubs ran the same hook.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: lab-presync-
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: 86400
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: hook
+          image: busybox:1.36
+          command: ["sh", "-c", "echo presync from $(hostname); sleep 5"]
