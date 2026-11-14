@@ -19,3 +19,6 @@ for h in hub-a hub-b; do
              -e 's/.*Revision:,.*SelfHealAttemptsCount:([0-9]+).*"time":"([^"]+)".*/\2 rev=(target) selfHealAttempt=\1/' \
     | awk -v after="$AFTER" '$1 >= after'
 done
+
+# a hub with no syncs is a result, not an error (grep exits 1 on no match)
+exit 0
