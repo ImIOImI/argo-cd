@@ -34,7 +34,7 @@ for hub in hub-a hub-b; do
   ctx="kind-$hub"
   echo "== $hub: load $tag"
   kind load docker-image "$tag" --name "$hub"
-  kubectl --context "$ctx" apply --server-side --force-conflicts -f "$root/manifests/crds/" >/dev/null
+  kubectl --context "$ctx" apply --server-side --force-conflicts -k "$root/manifests/crds/" >/dev/null
   # Swap every container/initContainer that runs the argocd image; kind-loaded
   # images can't be pulled, so pull only if missing.
   kubectl --context "$ctx" -n argocd get deployment,statefulset -o json \
