@@ -1,0 +1,118 @@
+# 2026-11-14: Baseline, stock Argo CD on two hubs
+
+**Question:** what actually happens today when two unmodified Argo CD hubs
+both run auto-sync on the same Application?
+
+**Setup** ([hack/multi-hub-lab](../hack/multi-hub-lab), commit `e78ab670f`)
+- kind v0.30.0, three clusters: `hub-a`, `hub-b`, `spoke`.
+- Argo CD **v3.6.1** stock install on both hubs, same `installationID`
+  (`multi-hub-lab`), annotation tracking.
+- `lab-app` defined the same way on both hubs: tracks branch
+  `spike/multi-hub`, path `hack/multi-hub-lab/app`, automated
+  `prune: true, selfHeal: true`, `manifest-generate-paths: .`.
+- App contents: ConfigMap `lab-config` (with a `generation` counter), a pause
+  Deployment, and a PreSync hook Job using `generateName`.
+- Skew by design: hub-a reconciles every **30s**, hub-b every **180s**. No
+  Git webhooks.
+- Watched with `observe.sh` (a sample about every 4s) plus each controller's
+  log of auto-sync decisions. The controller logs are the reliable source:
+  the samples are too coarse to catch quick flips.
+
+Raw data: [data/2026-11-14-baseline](data/2026-11-14-baseline)
+
+---
+
+## R0. Initial sync: both hubs ran the PreSync hook
+
+Each hub started its own full sync of the new app, 19s apart (hub-b at
+11:55:00Z, hub-a at 11:55:19Z). Two hook Jobs ran:
+
+```
+lab-presync-e264214-presync-1794657300
+lab-presync-e264214-presync-1794657319
+```
+
+The names differ only in the `startedAt` suffix. This confirms design-doc
+findings **F3** (neither hub sees the other's operation) and **F5** (hook
+names are `<generateName><sha7>-<phase>-<startedAt>`). A database migration
+in a PreSync hook would have run twice.
+
+## R1 (E1). Steady state: no writes, even across a commit that changes nothing
+
+4.3 minutes, 63 samples, ConfigMap `resourceVersion` stayed at `1127`.
+
+During that window commit `e78ab670f` landed. It changed only the lab
+*scripts*, not the app path. hub-a moved to `e78ab67` while hub-b stayed on
+`e264214`, so **the hubs were on different revisions and still didn't
+fight**, because both rendered the same manifests.
+
+**Conclusion:** Argo decides by comparing content. Running two hubs costs
+nothing while their desired state matches. Churn needs a difference in
+*rendered* output, not just a different SHA.
+
+## R2 (E2). One real commit, self-heal on: 11 syncs over 2 minutes, ~5 minutes of disagreement
+
+Pushed generation 1→2 (`12c0494`) at 12:00:35Z (UTC; local 06:00:35).
+
+Every sync the controllers started (from `Initialized new operation`):
+
+| Time (UTC) | hub-a → | hub-b → | Self-heal attempt |
+|---|---|---|---|
+| 12:00:46 | `12c0494` (gen 2), full sync | | 0 |
+| 12:01:03 | | `e78ab67` (gen 1) | 1 |
+| 12:01:04 | `12c0494` | | 1 |
+| 12:01:06 | `12c0494` | `e78ab67` | 2 |
+| 12:01:12–13 | `12c0494` | `e78ab67` | 3 |
+| 12:01:33–34 | `12c0494` | `e78ab67` | 4 |
+| 12:02:32 | `12c0494` | `e78ab67` | 5 |
+
+- Same mechanism as **F2**: hub-a's apply changed the spoke, which made
+  hub-b do a `CompareWithRecent` against its *own* last-resolved commit
+  (`e78ab67`). Hub-b saw OutOfSync and self-healed back to generation 1.
+  Hub-a did the same in reverse.
+- **Self-heal backoff was the only damping** (gaps of about 2s, 6s, 21s and
+  58s). The next rounds would have been further apart, and hub-b resolved the
+  new commit first: both hubs showed `Synced 12c0494` at about 12:05:28.
+- **The final state came down to timing.** Both hubs wrote in the same second
+  at 12:02:32. Generation 2 happened to land last. If hub-b's write had landed
+  last, the spoke would have run the **old config for about 3 minutes** while
+  hub-a showed it as Synced. hub-a's next self-heal would have fixed it, but
+  only after its own backoff.
+- ConfigMap `resourceVersion` went 1127 → 1599 → 1604 → 1614 → 1640 → 1714.
+  The ~4s samples always showed generation 2. Every flip to generation 1 was
+  reverted between samples, so **polling the spoke's state hides this churn**.
+  Only the controller logs or audit logs show it.
+- **No extra hook runs:** self-heal syncs only re-apply the out-of-sync
+  resources (`op.Sync.Resources` is set in `autoSync`), so PreSync didn't run.
+  One hook Job for `12c0494`. Duplicate hooks come from *full* syncs that both
+  hubs start (R0), not from flapping.
+
+## R3 (E4). Self-heal off
+
+*Pending: run started 12:07:48Z (generation 2→3, `selfHeal: false` on
+both hubs).* Hypothesis H1: without self-heal, `alreadyAttemptedSync` makes
+hub-b skip, so there's at most one extra sync per hub per commit and no
+flapping.
+
+## R4 (E5). Manual rollback on one hub
+
+*Not run yet.*
+
+---
+
+## What this means for the design
+
+1. **The revision pin (C1) is the main fix.** R1 shows the hubs get along
+   whenever they agree on what to render. R2 shows that all the churn comes
+   from the skew window.
+2. **The operation lease (C2) fixes R0** (duplicate full syncs and hooks),
+   and on its own it would also have removed most of R2: hub-b could not have
+   started a revert while hub-a held the lease. But once the lease was
+   released, hub-b would still revert. So C2 does not replace C1.
+3. **Checking for churn has to use controller or audit events, not spoke
+   polling.** The lab should count `Initialized new operation` per commit
+   (now the scoreboard metric in [README](README.md)).
+4. Lab note: tracking a branch of the large argo-cd fork needs a longer
+   repo-server timeout (`ARGOCD_EXEC_TIMEOUT`,
+   `controller.repo.server.timeout.seconds`) for the first fetch. Now in
+   `up.sh`.
