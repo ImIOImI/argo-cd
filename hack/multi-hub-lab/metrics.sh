@@ -9,5 +9,5 @@ for h in hub-a hub-b; do
   pf=$!
   for _ in $(seq 20); do curl -sf "localhost:$port/metrics" >/dev/null && break; sleep 0.5; done
   curl -s "localhost:$port/metrics" | grep '^argocd_multihub_' || echo "(no argocd_multihub_ series)"
-  kill "$pf" 2>/dev/null; wait "$pf" 2>/dev/null
+  kill "$pf" 2>/dev/null; wait "$pf" 2>/dev/null || true
 done
