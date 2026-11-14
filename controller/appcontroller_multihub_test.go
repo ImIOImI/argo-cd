@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -20,6 +22,7 @@ import (
 	"github.com/argoproj/argo-cd/v3/controller/multihub"
 	"github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	"github.com/argoproj/argo-cd/v3/reposerver/apiclient"
+	mockrepoclient "github.com/argoproj/argo-cd/v3/reposerver/apiclient/mocks"
 	"github.com/argoproj/argo-cd/v3/test"
 )
 
@@ -212,4 +215,84 @@ func TestMultihubRefreshComparesAtPin(t *testing.T) {
 	updated, err := f.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(app.Namespace).Get(t.Context(), app.Name, metav1.GetOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, "new222", updated.Status.Sync.Revision)
+}
+
+func revisionMetadataClient(t *testing.T, md *v1alpha1.RevisionMetadata, err error) (*mockrepoclient.Clientset, *[]*apiclient.RepoServerRevisionMetadataRequest) {
+	t.Helper()
+	var seen []*apiclient.RepoServerRevisionMetadataRequest
+	client := &mockrepoclient.RepoServerServiceClient{}
+	client.EXPECT().GetRevisionMetadata(mock.Anything, mock.Anything).
+		Run(func(_ context.Context, req *apiclient.RepoServerRevisionMetadataRequest, _ ...grpc.CallOption) {
+			seen = append(seen, req)
+		}).
+		Return(md, err).Maybe()
+	return &mockrepoclient.Clientset{RepoServerServiceClient: client}, &seen
+}
+
+func TestMultihubRepoCommitTimeReturnsCommitDate(t *testing.T) {
+	app := pinTestApp()
+	ctrl := newFakeController(t.Context(), &fakeData{apps: []runtime.Object{app, &defaultProj}}, nil)
+	clientset, seen := revisionMetadataClient(t, &v1alpha1.RevisionMetadata{Date: &metav1.Time{Time: pinT2}}, nil)
+
+	got, err := ctrl.multihubRepoCommitTime(clientset)(t.Context(), app, "abc123")
+	require.NoError(t, err)
+	assert.True(t, got.Equal(pinT2), "got %v", got)
+	require.Len(t, *seen, 1)
+	assert.Equal(t, "abc123", (*seen)[0].Revision)
+	require.NotNil(t, (*seen)[0].Repo)
+	assert.Equal(t, app.Spec.GetSource().RepoURL, (*seen)[0].Repo.Repo)
+}
+
+func TestMultihubRepoCommitTimeErrors(t *testing.T) {
+	app := pinTestApp()
+	ctrl := newFakeController(t.Context(), &fakeData{apps: []runtime.Object{app, &defaultProj}}, nil)
+
+	failing, _ := revisionMetadataClient(t, nil, errors.New("repo-server down"))
+	_, err := ctrl.multihubRepoCommitTime(failing)(t.Context(), app, "abc123")
+	require.Error(t, err)
+
+	undated, _ := revisionMetadataClient(t, &v1alpha1.RevisionMetadata{}, nil)
+	_, err = ctrl.multihubRepoCommitTime(undated)(t.Context(), app, "abc123")
+	require.Error(t, err, "a revision without a commit date can't be ordered")
+}
+
+func TestMultihubPinRevisionSkipsHelmAndOCISources(t *testing.T) {
+	for name, mutate := range map[string]func(*v1alpha1.ApplicationSource){
+		"helm": func(s *v1alpha1.ApplicationSource) {
+			s.Chart = "my-chart"
+			s.RepoURL = "https://charts.example.invalid"
+		},
+		"oci": func(s *v1alpha1.ApplicationSource) { s.RepoURL = "oci://registry.example.invalid/app" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			app := pinTestApp()
+			mutate(app.Spec.Source)
+			f := newMultihubPinFixture(t, &fakeData{apps: []runtime.Object{app, &defaultProj}}, app)
+			f.lookup["1.2.3"] = pinT1
+
+			got, recompare := f.ctrl.multihubPinRevision(t.Context(), app, "1.2.3")
+			assert.Equal(t, "1.2.3", got)
+			assert.False(t, recompare)
+			assert.Equal(t, 0, f.calls, "only git revisions are ordered by commit time")
+			_, ok := f.pin(t)
+			assert.False(t, ok)
+		})
+	}
+}
+
+func TestMultihubInitWiresCommitTimeLookupOnlyWhenEnabled(t *testing.T) {
+	app := pinTestApp()
+	ctrl := newFakeController(t.Context(), &fakeData{apps: []runtime.Object{app, &defaultProj}}, nil)
+	clientset, _ := revisionMetadataClient(t, &v1alpha1.RevisionMetadata{Date: &metav1.Time{Time: pinT1}}, nil)
+
+	ctrl.multihubCommitTime = nil
+	ctrl.multihubInit(clientset)
+	assert.Nil(t, ctrl.multihubCommitTime, "disabled: no lookup")
+
+	t.Setenv(multihub.EnvHubID, "hub-x")
+	ctrl.multihubInit(clientset)
+	require.NotNil(t, ctrl.multihubCommitTime, "enabled: lookup wired to the repo-server")
+	got, err := ctrl.multihubCommitTime(t.Context(), app, "abc123")
+	require.NoError(t, err)
+	assert.True(t, got.Equal(pinT1))
 }

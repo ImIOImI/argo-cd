@@ -334,7 +334,7 @@ func NewApplicationController(
 	ctrl.deploymentInformer = deploymentInformer
 	ctrl.appStateManager = appStateManager
 	ctrl.stateCache = stateCache
-	ctrl.multihubInit()
+	ctrl.multihubInit(repoClientset)
 
 	return &ctrl, nil
 }

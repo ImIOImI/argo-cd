@@ -15,6 +15,7 @@ import (
 
 	"github.com/argoproj/argo-cd/v3/controller/multihub"
 	appv1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
+	"github.com/argoproj/argo-cd/v3/reposerver/apiclient"
 	applog "github.com/argoproj/argo-cd/v3/util/app/log"
 	"github.com/argoproj/argo-cd/v3/util/argo"
 )
@@ -37,7 +38,7 @@ const (
 )
 
 // multihubInit is called once from NewApplicationController.
-func (ctrl *ApplicationController) multihubInit() {
+func (ctrl *ApplicationController) multihubInit(_ apiclient.Clientset) {
 	cfg := multihub.ConfigFromEnv()
 	ctrl.multihub = multihub.New(cfg, ctrl.multihubClient)
 	if !ctrl.multihub.Enabled() {
@@ -244,4 +245,12 @@ func (ctrl *ApplicationController) multihubPinRevision(ctx context.Context, app 
 		return d.Pin.Revision, true
 	}
 	return compared, false
+}
+
+// multihubRepoCommitTime looks a git revision's commit time up through the
+// repo-server. STUB (red): returns a zero time; implemented in the next commit.
+func (ctrl *ApplicationController) multihubRepoCommitTime(_ apiclient.Clientset) func(context.Context, *appv1.Application, string) (time.Time, error) {
+	return func(context.Context, *appv1.Application, string) (time.Time, error) {
+		return time.Time{}, nil
+	}
 }
