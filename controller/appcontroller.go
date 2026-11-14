@@ -170,6 +170,9 @@ type ApplicationController struct {
 	// multihub coordinates sync operations with other hubs managing the same
 	// Applications. nil (disabled) unless ARGOCD_MULTIHUB_HUB_ID is set.
 	multihub *multihub.Coordinator
+	// multihubCommitTime looks up a revision's commit time for the revision
+	// pin. Set in multihubInit; a field so tests can replace it.
+	multihubCommitTime func(ctx context.Context, app *appv1.Application, revision string) (time.Time, error)
 }
 
 // NewApplicationController creates new instance of ApplicationController.

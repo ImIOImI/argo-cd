@@ -215,3 +215,11 @@ func multihubRecheckDelay(d multihub.Decision) time.Duration {
 	}
 	return d.RetryAfter
 }
+
+// multihubPinRevision agrees app's compared revision with the other hubs
+// (revision pin, C1). It returns the revision to use and whether it differs
+// from the one compared, i.e. whether the caller must compare again.
+// STUB (red): passes the revision through; implemented in the next commit.
+func (ctrl *ApplicationController) multihubPinRevision(_ context.Context, _ *appv1.Application, compared string) (string, bool) {
+	return compared, false
+}
