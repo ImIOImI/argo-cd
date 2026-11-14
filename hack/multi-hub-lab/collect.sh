@@ -3,6 +3,7 @@
 #   <hub>-controller-autosync.jsonl  auto-sync decisions + started operations
 #   <hub>-application.yaml           the Application (status, history)
 #   spoke-jobs.txt                   hook Jobs on the spoke (one per hook run)
+#   spoke-leases.yaml                multihub operation leases on the spoke
 #   observe.log                      observe.sh samples, if present
 #   ./collect.sh ../../research/data/<date>-<slug>
 set -euo pipefail
@@ -12,11 +13,13 @@ SINCE="${SINCE:-60m}"
 mkdir -p "$dir"
 for h in hub-a hub-b; do
   kubectl --context "kind-$h" -n argocd logs statefulset/argocd-application-controller --since="$SINCE" 2>/dev/null \
-    | grep -E '"msg":"(Initiated automated sync|Skipping auto-sync|Initialized new operation)' \
+    | grep -E '"msg":"(Initiated automated sync|Skipping auto-sync|Initialized new operation|multihub|Waiting to start operation|Operation stopped)' \
     > "$dir/$h-controller-autosync.jsonl" || true
   kubectl --context "kind-$h" -n argocd get application lab-app -o yaml > "$dir/$h-application.yaml"
 done
 kubectl --context kind-spoke -n lab get jobs -o wide > "$dir/spoke-jobs.txt"
+# multihub operation leases (empty when coordination is off)
+kubectl --context kind-spoke -n argocd-coordination get leases -o yaml > "$dir/spoke-leases.yaml" 2>/dev/null || true
 [ -f "$(dirname "$0")/observe.log" ] && cp "$(dirname "$0")/observe.log" "$dir/observe.log"
 # Credentials should never appear here; refuse to leave them if they do.
 if grep -ilE 'bearer|token|password' "$dir"/* >/dev/null; then
