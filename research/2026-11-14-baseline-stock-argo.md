@@ -36,13 +36,18 @@ to the commit each script was at when it was used.
 | E2: one commit, self-heal on | `./bump.sh` (pushed `12c0494`) | [`bump.sh` @ e26421477](https://github.com/ImIOImI/argo-cd/blob/e26421477/hack/multi-hub-lab/bump.sh) |
 | Sync timeline (R2 table) | `AFTER=2026-11-14T12:00 ./syncs.sh` | [`syncs.sh` @ c09328a9f](https://github.com/ImIOImI/argo-cd/blob/c09328a9f/hack/multi-hub-lab/syncs.sh) |
 | E4: self-heal off, one commit | `./selfheal.sh off && ./bump.sh` (pushed `f3e8959`) | [`selfheal.sh` @ c09328a9f](https://github.com/ImIOImI/argo-cd/blob/c09328a9f/hack/multi-hub-lab/selfheal.sh) |
-| Save raw data | `./collect.sh ../../research/data/2026-11-14-baseline` | [`collect.sh` @ c09328a9f](https://github.com/ImIOImI/argo-cd/blob/c09328a9f/hack/multi-hub-lab/collect.sh) |
+| Save raw data (E1–E4) | `./collect.sh ../../research/data/2026-11-14-baseline` | [`collect.sh` @ c09328a9f](https://github.com/ImIOImI/argo-cd/blob/c09328a9f/hack/multi-hub-lab/collect.sh) |
+| E5: sample (background) | `rm -f observe.log && exec ./observe.sh` | [`observe.sh` @ ded013cef](https://github.com/ImIOImI/argo-cd/blob/ded013cef/hack/multi-hub-lab/observe.sh) |
+| E5: self-heal on for hub-a only, then roll back hub-b to history id 0 | `HUBS=hub-a ./selfheal.sh on && ./rollback.sh hub-b 0` | [`selfheal.sh` @ ded013cef](https://github.com/ImIOImI/argo-cd/blob/ded013cef/hack/multi-hub-lab/selfheal.sh), [`rollback.sh` @ ded013cef](https://github.com/ImIOImI/argo-cd/blob/ded013cef/hack/multi-hub-lab/rollback.sh) |
+| E5: sync timeline | `AFTER=2026-11-14T12:35 ./syncs.sh` | [`syncs.sh` @ ded013cef](https://github.com/ImIOImI/argo-cd/blob/ded013cef/hack/multi-hub-lab/syncs.sh) |
+| E5: save raw data | `SINCE=15m ./collect.sh ../../research/data/2026-11-14-baseline/e5` | [`collect.sh` @ ded013cef](https://github.com/ImIOImI/argo-cd/blob/ded013cef/hack/multi-hub-lab/collect.sh) |
 
 **Provenance:** `wait-synced.sh`, `syncs.sh`, `selfheal.sh` and
 `collect.sh` were first run as one-off commands during the session. They
 were saved as scripts afterwards (c09328a9f) with the same commands, and
 `syncs.sh` was re-run to check that it reproduces the R2 table exactly.
-Everything else was run from the pinned commit as written.
+Everything else was run from the pinned commit as written. The E5 scripts
+were committed (ded013cef) *before* they were run.
 
 ---
 
@@ -138,9 +143,42 @@ goal 2. What R3 shows is that self-heal is exactly what turns revision skew
 into flapping. The revision pin (C1) has to make self-heal safe, not
 remove it.
 
-## R4 (E5). Manual rollback on one hub
+## R4 (E5). Manual rollback on one hub: undone in 1 second, and hub-b still reports success
 
-*Not run yet.*
+Starting state: both hubs `Synced`, spoke on generation 3. Then:
+`HUBS=hub-a ./selfheal.sh on && ./rollback.sh hub-b 0`. Hub-b turned
+off its own auto-sync (rollback requires it) and rolled back to history id 0
+(`e264214`, generation 1). Hub-a kept auto-sync with self-heal on.
+`rollback.sh` writes the same Operation as `(*Server).Rollback`
+(`server/application/application.go:2341`): the history entry's
+revision and source, apply strategy, `prune: false`.
+
+`AFTER=2026-11-14T12:35 ./syncs.sh`:
+```
+== hub-a
+2026-11-14T12:35:58Z rev=8a8132a selfHealAttempt=1
+== hub-b
+2026-11-14T12:35:57Z rev=e264214 selfHealAttempt=0
+```
+
+- **The rollback lasted about 1 second.** Hub-b applied generation 1 at
+  12:35:57Z, and hub-a self-healed it back to the branch HEAD at 12:35:58Z.
+  The spoke ended on generation 3 (ConfigMap `resourceVersion` 2175 → 4183).
+- **Hub-b reported success anyway.** Afterwards hub-b showed
+  `Synced ded013c, op=Succeeded, initiatedBy=lab-rollback`. Its UI says the
+  rollback succeeded and the app is in sync, while the spoke is running the
+  version the operator tried to roll back *from*. Hub-b with auto-sync off
+  compares against the branch HEAD, which matches the live state again, so
+  nothing on hub-b points to a problem. It's a silent failure: the worst
+  outcome for an operator responding to an incident.
+- The ~4s samples never caught generation 1 on the spoke. Only the
+  controller logs show it happened.
+- No hook ran for the rollback, as expected: rollback uses the apply sync
+  strategy, which skips hooks.
+
+This confirms **F6**: manual operations stay on the hub where they were
+made. In a real incident, "roll back from whichever hub I'm logged into"
+(goal 1) silently does nothing while the other hub has self-heal on.
 
 ---
 
@@ -153,10 +191,14 @@ remove it.
    and on its own it would also have removed most of R2: hub-b could not have
    started a revert while hub-a held the lease. But once the lease was
    released, hub-b would still revert. So C2 does not replace C1.
-3. **Checking for churn has to use controller or audit events, not spoke
+3. **Coordinated manual operations (C5) are a correctness requirement, not
+   a convenience.** R4 shows a rollback on one hub being reverted within a
+   second while that hub reports success. The pin with `override: true`
+   has to be honored by *every* hub before a rollback can be trusted.
+4. **Checking for churn has to use controller or audit events, not spoke
    polling.** The lab should count `Initialized new operation` per commit
    (now the scoreboard metric in [README](README.md)).
-4. Lab note: tracking a branch of the large argo-cd fork needs a longer
+5. Lab note: tracking a branch of the large argo-cd fork needs a longer
    repo-server timeout (`ARGOCD_EXEC_TIMEOUT`,
    `controller.repo.server.timeout.seconds`) for the first fetch. Now in
    `up.sh`.

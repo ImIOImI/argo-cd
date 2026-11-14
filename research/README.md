@@ -10,7 +10,7 @@ active/active on two hubs against the same Applications and spoke clusters.
 
 | Date | Note | Summary |
 |------|------|---------|
-| 2026-11-14 | [Baseline: stock Argo CD on two hubs](2026-11-14-baseline-stock-argo.md) | Stock v3.6.1 churns for ~2 min on every commit with self-heal on (11 syncs for 1 commit), and starts duplicate full syncs, with hooks, when both hubs see OutOfSync together. With no change to rendered manifests, nothing gets written. |
+| 2026-11-14 | [Baseline: stock Argo CD on two hubs](2026-11-14-baseline-stock-argo.md) | Stock v3.6.1 churns for ~2 min on every commit with self-heal on (11 syncs for 1 commit), and starts duplicate full syncs, with hooks, when both hubs see OutOfSync together. With no change to rendered manifests, nothing gets written. A manual rollback on one hub is reverted by the other within 1s while the first hub reports success. |
 
 Raw data for each note is in `data/<date>-<slug>/`.
 
@@ -27,4 +27,4 @@ each coordination change (C1–C6 in the design doc) lands.
 | Spoke shows the *old* generation after a commit | possible: last write raced at 12:02:32 | never |
 | Hook runs per full sync started by both hubs (initial sync) | 2 | 1 |
 | Syncs per commit, self-heal off (E4) | 1 (hub-b skips), but drift is never corrected | 1, with self-heal on |
-| Manual rollback survives on the other hub (E5) | *not run yet* | yes |
+| Manual rollback on one hub survives (E5) | no: reverted by the other hub in 1s, and the rolling-back hub still shows Succeeded + Synced | yes, on every hub, until cleared |
