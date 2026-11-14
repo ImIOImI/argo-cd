@@ -2331,6 +2331,14 @@ func (ctrl *ApplicationController) processAppRefreshQueueItem() (processNext boo
 	persistedReconciledAt := app.Status.ReconciledAt
 	app.Status.ReconciledAt = ctrl.statusWithEffectiveReconciledAt(app).ReconciledAt
 	compareResult, err := ctrl.appStateManager.CompareAppState(ctx, app, project, revisions, sources, refreshType == appv1.RefreshTypeHard, comparisonLevel == CompareWithLatestForceResolve, localManifests, hasMultipleSources)
+	// multihub: compare (and so auto-sync) only against the revision all hubs
+	// agreed on. A hub whose own resolution is behind the pin re-compares at it.
+	if err == nil {
+		if pinned, recompare := ctrl.multihubPinRevision(ctx, app, compareResult.syncStatus.Revision); recompare {
+			compareResult, err = ctrl.appStateManager.CompareAppState(ctx, app, project, []string{pinned}, sources, refreshType == appv1.RefreshTypeHard, false, localManifests, hasMultipleSources)
+			ts.AddCheckpoint("multihub_recompare_ms")
+		}
+	}
 	app.Status.ReconciledAt = persistedReconciledAt
 
 	ts.AddCheckpoint("compare_app_state_ms")

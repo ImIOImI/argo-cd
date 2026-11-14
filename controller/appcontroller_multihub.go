@@ -219,7 +219,29 @@ func multihubRecheckDelay(d multihub.Decision) time.Duration {
 // multihubPinRevision agrees app's compared revision with the other hubs
 // (revision pin, C1). It returns the revision to use and whether it differs
 // from the one compared, i.e. whether the caller must compare again.
-// STUB (red): passes the revision through; implemented in the next commit.
-func (ctrl *ApplicationController) multihubPinRevision(_ context.Context, _ *appv1.Application, compared string) (string, bool) {
+//
+// It passes the compared revision through unchanged (no pin) when
+// coordination is off, the revision is empty, the app has several sources
+// (not pinned yet), no commit-time lookup is configured, or the commit time
+// or the pin can't be read: a hub that can't agree behaves like a single hub.
+func (ctrl *ApplicationController) multihubPinRevision(ctx context.Context, app *appv1.Application, compared string) (string, bool) {
+	if !ctrl.multihub.Enabled() || compared == "" || app.Spec.HasMultipleSources() || ctrl.multihubCommitTime == nil {
+		return compared, false
+	}
+	commitTime, err := ctrl.multihubCommitTime(ctx, app, compared)
+	if err != nil {
+		return compared, false
+	}
+	server, key, err := ctrl.multihubTarget(ctx, app)
+	if err != nil {
+		return compared, false
+	}
+	d, err := ctrl.multihub.AgreeRevision(ctx, server, key, multihub.Candidate{Revision: compared, CommitTime: commitTime})
+	if err != nil || d.Pin.Revision == "" {
+		return compared, false
+	}
+	if d.Pin.Revision != compared {
+		return d.Pin.Revision, true
+	}
 	return compared, false
 }
