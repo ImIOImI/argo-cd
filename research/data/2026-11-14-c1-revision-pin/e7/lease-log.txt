@@ -1,0 +1,5 @@
+== hub-a
+23:37:09 info  advanced  pin       -      -   multihub: advanced the pinned revision to 2afd68666b500112c2052e844195ba1d6d16ab45
+23:37:09 info  acquired  auto-sync hub-a  18  multihub: operation lease acquired (generation 18)
+23:37:24 info  released  operation hub-a  -   multihub: released operation lease
+== hub-b

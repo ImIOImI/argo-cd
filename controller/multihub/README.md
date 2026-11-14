@@ -5,9 +5,16 @@ on the same destination clusters. Design:
 [docs/proposals/multi-hub-active-active.md](../../docs/proposals/multi-hub-active-active.md).
 Measurements: [research/](../../research/).
 
-Implemented so far: **C2, the operation lease.** One `coordination.k8s.io/v1`
-Lease per Application, on the destination cluster, so at most one hub runs a
-sync operation for an Application at a time.
+Implemented so far:
+- **C2, the operation lease:** one `coordination.k8s.io/v1` Lease per
+  Application, on the destination cluster, so at most one hub runs a sync
+  operation for an Application at a time.
+- **C1, the revision pin:** annotations on that same Lease record the
+  revision every hub compares and syncs against. After each comparison a hub
+  offers its resolved revision. The pin only moves to a strictly later
+  commit (by commit time, read from the repo-server). A hub that's behind
+  compares again at the pin instead of reverting. Not applied to
+  multi-source, helm or OCI apps.
 
 ## Configuration
 
@@ -75,6 +82,16 @@ Startup logs one line with the effective configuration:
 `multihub coordination enabled: hub id "hub-a"` with `multihub.*` fields
 for every setting.
 
+Revision-pin decisions use the same fields with `multihub.path=pin`, plus
+`multihub.candidate_revision` (what this hub resolved),
+`multihub.pinned_revision` and `multihub.pinned_by`:
+
+| Pin event | Level |
+|---|---|
+| `pinned`, `advanced`, `adopted` | info (`LOG_LIFECYCLE`) |
+| `kept` | debug |
+| `error` | **warn** on change, debug for repeats (warn every time with `LOG_DENIALS=all`) |
+
 ### Kubernetes Events (on the Application)
 
 | Reason | Type | When |
@@ -91,7 +108,8 @@ Routine acquire/release has no Event. Upstream's `OperationStarted` /
 ### Metrics
 
 `argocd_multihub_lease_decisions_total{hub, path, event}`: a counter on the
-controller's existing `/metrics` endpoint. Useful queries:
+controller's existing `/metrics` endpoint. `path` is `auto-sync`,
+`operation` or `pin`. Useful queries:
 
 ```promql
 # takeovers, should be ~0 outside of hub failures
@@ -108,6 +126,9 @@ logs and Events.
 ### State on the destination
 
 `kubectl -n argocd-coordination get lease <installationID>.<app> -o yaml`
-shows the current holder, `acquireTime`/`renewTime`, `leaseTransitions`, and
-the `multihub.argoproj.io/released-by` / `released-at` annotations from
-the last release. That's current state only, not history.
+shows:
+- the current holder, `acquireTime`/`renewTime` and `leaseTransitions`;
+- the `multihub.argoproj.io/released-by` / `released-at` annotations from
+  the last release;
+- the revision pin (`multihub.argoproj.io/pinned-revision`,
+  `pinned-commit-time`, `pinned-by`, `pinned-at`). That's current state only, not history.

@@ -1,0 +1,9 @@
+== hub-a
+23:30:37 info  advanced  pin       -      -   multihub: advanced the pinned revision to f56e377ab94bca6b9790c0da9139e6e3ebb4587e
+23:30:38 info  acquired  auto-sync hub-a  17  multihub: operation lease acquired (generation 17)
+23:30:51 info  released  operation hub-a  -   multihub: released operation lease
+23:36:57 info  advanced  pin       -      -   multihub: advanced the pinned revision to ca2b4890093cf171ce0ee67e17b194ee2a11bb73
+== hub-b
+23:30:38 info  adopted   pin       -      -   multihub: using pinned revision f56e377ab94bca6b9790c0da9139e6e3ebb4587e (pinned by hub-a) instead of this hub's f851f6d7389cff75a6be11825939a15aec57e352
+23:30:39 info  held      auto-sync hub-a  -   Skipping auto-sync: operation lease held by hub-a (rechecking in 15s)
+23:30:54 info  adopted   pin       -      -   multihub: using pinned revision f56e377ab94bca6b9790c0da9139e6e3ebb4587e (pinned by hub-a) instead of this hub's f851f6d7389cff75a6be11825939a15aec57e352

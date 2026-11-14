@@ -195,7 +195,11 @@ sends.
    implemented (`controller/multihub`); removes duplicate full syncs, doesn't
    stop skew flapping. See
    [research/2026-11-14-c2-operation-lease.md](../../research/2026-11-14-c2-operation-lease.md).*
-3. **C1**: revision pin. Re-run E2 and expect zero flapping.
+3. **C1**: revision pin. Re-run E2 and expect zero flapping. *Status:
+   implemented test-first; E2 went from 9 syncs (C2 only) to 1. See
+   [research/2026-11-14-c1-revision-pin.md](../../research/2026-11-14-c1-revision-pin.md).
+   The pin lives on the Lease (annotations), not a separate
+   `SyncCoordination` object, and is ordered by commit time, not ancestry.*
 4. **C3**: kill hub-a mid-sync, including during a running PreSync hook,
    and expect hub-b to adopt the hook rather than run it again.
 5. **C4, C5, C6.**
