@@ -50,6 +50,7 @@ import (
 	"github.com/argoproj/argo-cd/v3/common"
 	statecache "github.com/argoproj/argo-cd/v3/controller/cache"
 	"github.com/argoproj/argo-cd/v3/controller/hydrator"
+	"github.com/argoproj/argo-cd/v3/controller/multihub"
 	hydratortypes "github.com/argoproj/argo-cd/v3/controller/hydrator/types"
 	"github.com/argoproj/argo-cd/v3/controller/metrics"
 	"github.com/argoproj/argo-cd/v3/controller/sharding"
@@ -165,6 +166,10 @@ type ApplicationController struct {
 	deploymentInformer                informerv1.DeploymentInformer
 
 	hydrator *hydrator.Hydrator
+
+	// multihub coordinates sync operations with other hubs managing the same
+	// Applications. nil (disabled) unless ARGOCD_MULTIHUB_HUB_ID is set.
+	multihub *multihub.Coordinator
 }
 
 // NewApplicationController creates new instance of ApplicationController.
@@ -326,6 +331,10 @@ func NewApplicationController(
 	ctrl.deploymentInformer = deploymentInformer
 	ctrl.appStateManager = appStateManager
 	ctrl.stateCache = stateCache
+	ctrl.multihub = multihub.New(multihub.ConfigFromEnv(), ctrl.multihubClient)
+	if ctrl.multihub.Enabled() {
+		log.Infof("multihub coordination enabled: hub id %q", ctrl.multihub.HubID())
+	}
 
 	return &ctrl, nil
 }
@@ -1678,6 +1687,33 @@ func (ctrl *ApplicationController) processRequestedAppOperation(app *appv1.Appli
 		ctrl.appOperationQueue.AddAfter(ctrl.toAppKey(app.QualifiedName()), requeueAfter)
 	}()
 
+	// multihub: hold the operation lease for every pass of a real (non-dry-run)
+	// operation. Renewing here keeps it alive for the operation's duration.
+	if ctrl.multihub.Enabled() && (app.Operation.Sync == nil || !app.Operation.Sync.DryRun) {
+		decision, err := ctrl.multihubAcquire(ctx, app, false)
+		switch {
+		case err == nil && !decision.Granted && isOperationInProgress(app):
+			// We were running this operation, and another hub now holds the
+			// lease: ours expired (e.g. we were partitioned from the
+			// destination). Stop rather than act on a stale lease.
+			state = app.Status.OperationState.DeepCopy()
+			state.Phase = synccommon.OperationError
+			state.Message = fmt.Sprintf("Operation stopped: %s; this hub's lease expired", decision.Reason)
+			ctrl.setOperationState(ctx, app, state)
+			logCtx.Warn(state.Message)
+			return
+		case err != nil || !decision.Granted:
+			reason := decision.Reason
+			if err != nil {
+				reason = err.Error()
+			}
+			logCtx.Infof("Waiting to start operation: %s", reason)
+			requeueAfter = multihubOperationWait
+			requeuedForRetry = true
+			return
+		}
+	}
+
 	terminatingCause := ""
 	if isOperationInProgress(app) {
 		state = app.Status.OperationState.DeepCopy()
@@ -1791,6 +1827,9 @@ func (ctrl *ApplicationController) processRequestedAppOperation(app *appv1.Appli
 
 	ctrl.setOperationState(ctx, app, state)
 	ts.AddCheckpoint("final_set_operation_state_ms")
+	if state.Phase.Completed() {
+		ctrl.multihubRelease(ctx, app)
+	}
 	if state.Phase.Completed() && (app.Operation.Sync != nil && !app.Operation.Sync.DryRun) {
 		// if we just completed an operation, force a refresh so that UI will report up-to-date
 		// sync/health information
@@ -3105,6 +3144,23 @@ func (ctrl *ApplicationController) autoSync(ctx context.Context, app *appv1.Appl
 		}
 	}
 
+	// multihub: only one hub may run an operation for this app at a time.
+	if ctrl.multihub.Enabled() {
+		decision, err := ctrl.multihubAcquire(ctx, app, true)
+		ts.AddCheckpoint("multihub_acquire_ms")
+		if err != nil {
+			logCtx.WithError(err).Warn("Skipping auto-sync: multihub operation lease unavailable")
+			return &appv1.ApplicationCondition{Type: appv1.ApplicationConditionSyncError, Message: err.Error()}, 0
+		}
+		if !decision.Granted {
+			recheck := multihubRecheckDelay(decision)
+			logCtx.Infof("Skipping auto-sync: %s (rechecking in %v)", decision.Reason, recheck)
+			ctrl.requestAppRefresh(app.QualifiedName(), CompareWithLatest.Pointer(), &recheck)
+			return nil, 0
+		}
+		logCtx.Infof("multihub: operation lease %s, generation %d", decision.Reason, decision.Generation)
+	}
+
 	appIf := ctrl.applicationClientset.ArgoprojV1alpha1().Applications(app.Namespace)
 	ts.AddCheckpoint("get_applications_ms")
 	start := time.Now()
@@ -3112,6 +3168,7 @@ func (ctrl *ApplicationController) autoSync(ctx context.Context, app *appv1.Appl
 	ts.AddCheckpoint("set_app_operation_ms")
 	setOpTime := time.Since(start)
 	if err != nil {
+		ctrl.multihubRelease(ctx, app)
 		if stderrors.Is(err, argo.ErrAnotherOperationInProgress) {
 			// skipping auto-sync because another operation is in progress and was not noticed due to stale data in informer
 			// it is safe to skip auto-sync because it is already running
