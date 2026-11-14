@@ -4,4 +4,4 @@ metadata:
   name: lab-config
 data:
   # bump.sh rewrites this line; each push is one "commit N -> N+1" event
-  generation: "8"
+  generation: "9"
