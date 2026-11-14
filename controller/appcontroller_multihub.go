@@ -237,20 +237,64 @@ func (ctrl *ApplicationController) multihubPinRevision(ctx context.Context, app 
 	}
 	commitTime, err := ctrl.multihubCommitTime(ctx, app, compared)
 	if err != nil {
+		ctrl.multihubReportPin(app, compared, multihub.PinDecision{Event: multihub.PinError}, err.Error())
 		return compared, false
 	}
 	server, key, err := ctrl.multihubTarget(ctx, app)
 	if err != nil {
+		ctrl.multihubReportPin(app, compared, multihub.PinDecision{Event: multihub.PinError}, err.Error())
 		return compared, false
 	}
 	d, err := ctrl.multihub.AgreeRevision(ctx, server, key, multihub.Candidate{Revision: compared, CommitTime: commitTime})
 	if err != nil || d.Pin.Revision == "" {
+		reason := "empty pin"
+		if err != nil {
+			reason = err.Error()
+		}
+		ctrl.multihubReportPin(app, compared, multihub.PinDecision{Event: multihub.PinError}, reason)
 		return compared, false
 	}
+	ctrl.multihubReportPin(app, compared, d, "")
 	if d.Pin.Revision != compared {
 		return d.Pin.Revision, true
 	}
 	return compared, false
+}
+
+// multihubReportPin logs and counts one revision-pin decision.
+func (ctrl *ApplicationController) multihubReportPin(app *appv1.Application, candidate string, d multihub.PinDecision, reason string) {
+	hub := ctrl.multihub.HubID()
+	if ctrl.multihub.Telemetry().Metrics {
+		multihub.DecisionsTotal.WithLabelValues(hub, multihub.PathPin, string(d.Event)).Inc()
+	}
+	plan := ctrl.multihub.Reporter().PlanPin(app.QualifiedName(), d.Event, reason)
+	fields := log.Fields{
+		"multihub.hub":                hub,
+		"multihub.path":               multihub.PathPin,
+		"multihub.event":              string(d.Event),
+		"multihub.candidate_revision": candidate,
+	}
+	if d.Pin.Revision != "" {
+		fields["multihub.pinned_revision"] = d.Pin.Revision
+		fields["multihub.pinned_by"] = d.Pin.By
+	}
+	if reason != "" {
+		fields["multihub.reason"] = reason
+	}
+	var msg string
+	switch d.Event {
+	case multihub.PinPinned:
+		msg = "multihub: pinned revision " + d.Pin.Revision
+	case multihub.PinAdvanced:
+		msg = "multihub: advanced the pinned revision to " + d.Pin.Revision
+	case multihub.PinAdopted:
+		msg = fmt.Sprintf("multihub: using pinned revision %s (pinned by %s) instead of this hub's %s", d.Pin.Revision, d.Pin.By, candidate)
+	case multihub.PinKept:
+		msg = "multihub: revision " + candidate + " matches the pin"
+	default:
+		msg = fmt.Sprintf("multihub: revision pin unavailable, using this hub's revision %s: %s", candidate, reason)
+	}
+	log.WithFields(applog.GetAppLogFields(app)).WithFields(fields).Log(plan.LogLevel, msg)
 }
 
 // multihubRepoCommitTime looks a git revision's commit time up through the

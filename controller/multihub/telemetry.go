@@ -152,6 +152,7 @@ func level(on bool) log.Level {
 const (
 	PathAutoSync  = "auto-sync"
 	PathOperation = "operation"
+	PathPin       = "pin" // revision pin decisions (event = PinEvent)
 )
 
 // DecisionsTotal counts every lease decision by hub, code path and event.
@@ -171,8 +172,23 @@ func RegisterMetrics(reg prometheus.Registerer) error {
 	return err
 }
 
-// PlanPin decides how to report a revision-pin decision for app.
-// STUB (red): always debug; implemented in the next commit.
-func (r *Reporter) PlanPin(_ string, _ PinEvent, _ string) Report {
-	return Report{LogLevel: log.DebugLevel}
+// PlanPin decides how to report a revision-pin decision for app. Moves of
+// the pin (pinned, advanced, adopted) follow LOG_LIFECYCLE; agreeing with it
+// is debug; errors warn when they change, like lease errors. No Kubernetes
+// Events: the pin moves on every commit.
+func (r *Reporter) PlanPin(app string, ev PinEvent, reason string) Report {
+	k := app + "|" + PathPin
+	switch ev {
+	case PinError:
+		if r.changed(k, EventError, "", reason) || r.cfg.LogDenials == DenialLogAll {
+			return Report{LogLevel: log.WarnLevel}
+		}
+		return Report{LogLevel: log.DebugLevel}
+	case PinPinned, PinAdvanced, PinAdopted:
+		r.last.Delete(k)
+		return Report{LogLevel: level(r.cfg.LogLifecycle)}
+	default: // kept
+		r.last.Delete(k)
+		return Report{LogLevel: log.DebugLevel}
+	}
 }
