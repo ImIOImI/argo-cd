@@ -2,6 +2,9 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: lab-config
+  annotations:
+    # After the Deployment (wave 0) is healthy.
+    argocd.argoproj.io/sync-wave: "1"
 data:
   # bump.sh rewrites this line; each push is one "commit N -> N+1" event
   generation: "17"
