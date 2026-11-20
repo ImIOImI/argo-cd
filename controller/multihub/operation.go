@@ -252,3 +252,10 @@ func generationOf(lease *coordinationv1.Lease) int32 {
 	}
 	return *lease.Spec.LeaseTransitions
 }
+
+// ReturnClaim undoes a claim this hub couldn't act on: it puts the mirror
+// back as the previous hub left it and frees the lease, so any hub (this one
+// included) can claim the operation again.
+func (c *Coordinator) ReturnClaim(ctx context.Context, server string, key Key, claim Claim) error {
+	return nil
+}

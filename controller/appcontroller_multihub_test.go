@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 
 	synccommon "github.com/argoproj/argo-cd/gitops-engine/v3/pkg/sync/common"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/argoproj/argo-cd/v3/controller/multihub"
 	"github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
+	appclientset "github.com/argoproj/argo-cd/v3/pkg/client/clientset/versioned/fake"
 	"github.com/argoproj/argo-cd/v3/reposerver/apiclient"
 	mockrepoclient "github.com/argoproj/argo-cd/v3/reposerver/apiclient/mocks"
 	"github.com/argoproj/argo-cd/v3/test"
@@ -802,4 +804,26 @@ func TestMultihubClaimOrphanDoesNotRequeueWithoutAnOrphan(t *testing.T) {
 	f.ctrl.multihubRequeueRefresh = func(*v1alpha1.Application, time.Duration) { called = true }
 	assert.False(t, f.ctrl.multihubClaimOrphan(t.Context(), app))
 	assert.False(t, called)
+}
+
+// C3 gap 3, controller side: the lease was claimed but this hub's
+// Application couldn't be written. The claim is given back.
+func TestMultihubClaimOrphanGivesTheClaimBackIfTheAppWriteFails(t *testing.T) {
+	app := pinTestApp()
+	f, _ := orphanFixture(t, app, &fakeData{apps: []runtime.Object{app, &defaultProj}})
+	fakeAppCs := f.ctrl.applicationClientset.(*appclientset.Clientset)
+	fakeAppCs.PrependReactor("patch", "applications", func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, errors.New("etcd unavailable")
+	})
+
+	assert.False(t, f.ctrl.multihubClaimOrphan(t.Context(), app))
+	assert.Nil(t, app.Operation)
+
+	m, _ := f.mirror(t)
+	assert.Equal(t, "hub-a", m.Hub, "mirror handed back to hub-a's record")
+	assert.True(t, m.Running)
+	server, key := f.target(t)
+	c, err := f.ctrl.multihub.ClaimOrphan(t.Context(), server, key)
+	require.NoError(t, err)
+	assert.Equal(t, multihub.ClaimClaimed, c.Event, "this hub can claim it on its next refresh")
 }

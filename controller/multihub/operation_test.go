@@ -170,3 +170,35 @@ func TestDisabledCoordinatorOperationCallsAreNoops(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ClaimNone, cl.Event)
 }
+
+// C3 gap 3: a claim whose Application write failed is given back, so the
+// operation isn't stranded under a hub that will never claim it again.
+func TestReturnClaimLetsTheOperationBeClaimedAgain(t *testing.T) {
+	_, b, gen, clk := hubARunning(t)
+	clk.advance(61 * time.Second)
+	c, err := b.ClaimOrphan(t.Context(), server, key)
+	require.NoError(t, err)
+	require.Equal(t, ClaimClaimed, c.Event)
+
+	require.NoError(t, b.ReturnClaim(t.Context(), server, key, c))
+
+	m, _, err := b.CurrentOperation(t.Context(), server, key)
+	require.NoError(t, err)
+	assert.Equal(t, OperationMirror{Hub: "hub-a", Generation: gen, Running: true, State: []byte(`{"phase":"Running"}`)}, m, "mirror as hub-a left it")
+	again, err := b.ClaimOrphan(t.Context(), server, key)
+	require.NoError(t, err)
+	assert.Equal(t, ClaimClaimed, again.Event, "claimable again, by this hub too")
+}
+
+func TestReturnClaimIsFenced(t *testing.T) {
+	_, b, _, clk := hubARunning(t)
+	clk.advance(61 * time.Second)
+	c, err := b.ClaimOrphan(t.Context(), server, key)
+	require.NoError(t, err)
+	stale := c
+	stale.Generation--
+	assert.ErrorIs(t, b.ReturnClaim(t.Context(), server, key, stale), ErrNotHolder)
+	m, _, err := b.CurrentOperation(t.Context(), server, key)
+	require.NoError(t, err)
+	assert.Equal(t, "hub-b", m.Hub, "unchanged")
+}
