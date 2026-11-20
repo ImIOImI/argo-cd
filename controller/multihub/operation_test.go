@@ -219,3 +219,20 @@ func TestMirrorSkipsTheWriteWhenUnchanged(t *testing.T) {
 	require.NoError(t, a.MirrorOperation(t.Context(), server, key, d.Generation, false, state))
 	assert.Equal(t, before+1, leaseUpdates(spoke.Actions()), "finished: written")
 }
+
+// E9 (research/2026-11-20-c3-gaps.md): hub-b's only refresh during hub-a's
+// operation came right after hub-a took the lease and before its first
+// mirror, so it saw "nothing running" and scheduled no refresh at expiry.
+// A live lease held by another hub means "look again at expiry", mirror or
+// not.
+func TestClaimWaitsForALiveHolderBeforeItsFirstMirror(t *testing.T) {
+	a, b, _, clk := twoHubs(t)
+	_, err := a.AcquireForOperation(t.Context(), server, key)
+	require.NoError(t, err)
+	clk.advance(10 * time.Second)
+
+	c, err := b.ClaimOrphan(t.Context(), server, key)
+	require.NoError(t, err)
+	assert.Equal(t, ClaimWaiting, c.Event)
+	assert.Equal(t, 50*time.Second, c.RetryAfter)
+}
