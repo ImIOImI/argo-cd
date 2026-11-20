@@ -182,6 +182,9 @@ repeat. Behavior was correct; visibility was not.
 period, e.g. one lease duration with no further refusal, so each episode
 logs once.
 
+**Fixed 2026-11-20** (default 2 min of quiet, configurable): see
+[2026-11-20-refusal-dedup-expiry.md](2026-11-20-refusal-dedup-expiry.md).
+
 ---
 
 ## Known gaps
