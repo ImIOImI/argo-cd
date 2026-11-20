@@ -53,15 +53,16 @@ func (ctrl *ApplicationController) multihubInit(repoClientset apiclient.Clientse
 		}
 	}
 	log.WithFields(log.Fields{
-		"multihub.hub":            cfg.HubID,
-		"multihub.namespace":      cfg.Namespace,
-		"multihub.lease_duration": cfg.LeaseDuration.String(),
-		"multihub.settle_window":  cfg.SettleWindow.String(),
-		"multihub.log_lifecycle":  t.LogLifecycle,
-		"multihub.log_renewals":   t.LogRenewals,
-		"multihub.log_denials":    string(t.LogDenials),
-		"multihub.events":         t.Events,
-		"multihub.metrics":        t.Metrics,
+		"multihub.hub":                     cfg.HubID,
+		"multihub.namespace":               cfg.Namespace,
+		"multihub.lease_duration":          cfg.LeaseDuration.String(),
+		"multihub.settle_window":           cfg.SettleWindow.String(),
+		"multihub.log_lifecycle":           t.LogLifecycle,
+		"multihub.log_renewals":            t.LogRenewals,
+		"multihub.log_denials":             string(t.LogDenials),
+		"multihub.log_denials_reset_after": t.DenialsResetAfter.String(),
+		"multihub.events":                  t.Events,
+		"multihub.metrics":                 t.Metrics,
 	}).Infof("multihub coordination enabled: hub id %q", cfg.HubID)
 }
 
