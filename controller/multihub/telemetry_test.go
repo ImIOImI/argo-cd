@@ -236,3 +236,17 @@ func TestResetAfterZeroNeverForgets(t *testing.T) {
 	clk.advance(24 * time.Hour)
 	assert.Equal(t, log.DebugLevel, r.Plan("a", PathAutoSync, EventHeld, "hub-a", "").LogLevel)
 }
+
+// C5: a paused auto-sync is user-visible (the app is OutOfSync with
+// auto-sync on and nothing happens), so it raises one Event per change.
+func TestOverriddenRaisesOneEventPerChange(t *testing.T) {
+	r := NewReporter(Telemetry{LogDenials: DenialLogChanges, Events: true})
+	first := r.Plan("a", PathOverride, EventOverridden, "hub-b", "sync to e264214 by alice")
+	assert.Equal(t, log.InfoLevel, first.LogLevel)
+	assert.True(t, first.Event)
+	assert.False(t, first.Warning)
+	repeat := r.Plan("a", PathOverride, EventOverridden, "hub-b", "sync to e264214 by alice")
+	assert.Equal(t, log.DebugLevel, repeat.LogLevel)
+	assert.False(t, repeat.Event)
+	assert.True(t, r.Plan("a", PathOverride, EventOverridden, "hub-a", "sync to ded013c by bob").Event, "a different override is news")
+}

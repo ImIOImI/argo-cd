@@ -44,6 +44,7 @@ const (
 	EventReasonMultihubOperationTakenOver = "MultihubOperationTakenOver"
 	EventReasonMultihubOverrideSet        = "MultihubOverrideSet"
 	EventReasonMultihubOverrideCleared    = "MultihubOverrideCleared"
+	EventReasonMultihubAutoSyncPaused     = "MultihubAutoSyncPaused"
 	EventReasonMultihubOperationWaiting   = "MultihubOperationWaiting"
 )
 

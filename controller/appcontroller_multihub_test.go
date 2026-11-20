@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -1003,4 +1004,32 @@ func TestMultihubAutoSyncStandsDownWhileAnOverrideExists(t *testing.T) {
 			assert.Equal(t, "e264214", entries[0].Data["multihub.override_revision"])
 		})
 	}
+}
+
+func appEvents(ctrl *ApplicationController, reason string) []*corev1.Event {
+	var out []*corev1.Event
+	for _, action := range ctrl.kubeClientset.(*k8sfake.Clientset).Actions() {
+		create, ok := action.(k8stesting.CreateAction)
+		if !ok || create.GetResource().Resource != "events" {
+			continue
+		}
+		if e, ok := create.GetObject().(*corev1.Event); ok && e.Reason == reason {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+func TestMultihubPausedAutoSyncRaisesOneEvent(t *testing.T) {
+	app := pinTestApp()
+	f := newMultihubPinFixture(t, &fakeData{apps: []runtime.Object{app, &defaultProj}}, app)
+	f.hubAOverride(t, "e264214")
+
+	assert.True(t, f.ctrl.multihubOverridden(t.Context(), app))
+	assert.True(t, f.ctrl.multihubOverridden(t.Context(), app))
+
+	events := appEvents(f.ctrl, EventReasonMultihubAutoSyncPaused)
+	require.Len(t, events, 1, "once per change, not every refresh")
+	assert.Equal(t, corev1.EventTypeNormal, events[0].Type)
+	assert.Contains(t, events[0].Message, "e264214")
 }
