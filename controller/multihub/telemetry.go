@@ -121,6 +121,9 @@ func (r *Reporter) Plan(app, path string, ev Event, holder, reason string) Repor
 	}
 
 	switch ev {
+	case EventOverrideSet, EventOverrideCleared:
+		// Rare and user-driven; every hub's auto-sync depends on it.
+		return Report{LogLevel: log.InfoLevel, Event: r.cfg.Events}
 	case EventTakeover, EventLost:
 		return Report{LogLevel: log.WarnLevel, Event: r.cfg.Events, Warning: true}
 	case EventAcquired, EventReleased:
@@ -176,6 +179,7 @@ const (
 	PathOperation = "operation"
 	PathPin       = "pin"      // revision pin decisions (event = PinEvent)
 	PathTakeover  = "takeover" // claiming another hub's orphaned operation (C3)
+	PathOverride  = "override" // manual pins that pause automated syncs (C5)
 )
 
 // DecisionsTotal counts every lease decision by hub, code path and event.

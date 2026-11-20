@@ -42,6 +42,8 @@ const (
 	EventReasonMultihubError              = "MultihubLeaseError"
 	EventReasonMultihubReleaseError       = "MultihubLeaseReleaseError"
 	EventReasonMultihubOperationTakenOver = "MultihubOperationTakenOver"
+	EventReasonMultihubOverrideSet        = "MultihubOverrideSet"
+	EventReasonMultihubOverrideCleared    = "MultihubOverrideCleared"
 	EventReasonMultihubOperationWaiting   = "MultihubOperationWaiting"
 )
 
@@ -479,5 +481,72 @@ func (ctrl *ApplicationController) multihubShowState(ctx context.Context, app *a
 // sync to the app's targetRevision clears it. Automated and partial syncs
 // leave it alone.
 func (ctrl *ApplicationController) multihubApplyOverride(ctx context.Context, app *appv1.Application, op *appv1.Operation) error {
+	if !ctrl.multihub.Enabled() || op == nil || op.Sync == nil || op.InitiatedBy.Automated ||
+		op.Sync.DryRun || len(op.Sync.Resources) > 0 || app.Spec.HasMultipleSources() {
+		return nil
+	}
+	server, key, err := ctrl.multihubTarget(ctx, app)
+	if err != nil {
+		return fmt.Errorf("multihub: could not record the override: %w", err)
+	}
+	who := op.InitiatedBy.Username
+	if who == "" {
+		who = "unknown user"
+	}
+	rev, target := op.Sync.Revision, app.Spec.GetSource().TargetRevision
+	if rev == "" || rev == target || (target == "" && rev == "HEAD") {
+		removed, ok, err := ctrl.multihub.ClearOverride(ctx, server, key)
+		if err != nil {
+			// Not fatal: auto-sync stays paused until the next clear.
+			d := multihub.Decision{Event: multihub.EventError, Reason: err.Error()}
+			ctrl.multihubReport(ctx, app, multihub.PathOverride, d, "multihub: could not clear the override: "+err.Error())
+			return nil
+		}
+		if ok {
+			ctrl.multihubReportOverride(ctx, app, multihub.EventOverrideCleared, removed, fmt.Sprintf(
+				"multihub: override to %s (%s, set by %s) cleared by a sync to %s by %s; automated syncs resume on every hub",
+				removed.Revision, removed.Reason, removed.By, orHEAD(target), who))
+		}
+		return nil
+	}
+	o, err := ctrl.multihub.SetOverride(ctx, server, key, rev, fmt.Sprintf("sync to %s by %s", rev, who))
+	if err != nil {
+		return fmt.Errorf("multihub: could not record the override for this sync to %s, so other hubs would revert it: %w", rev, err)
+	}
+	ctrl.multihubReportOverride(ctx, app, multihub.EventOverrideSet, o, fmt.Sprintf(
+		"multihub: override to %s recorded (%s); automated syncs are paused on every hub until a sync to %s",
+		o.Revision, o.Reason, orHEAD(target)))
 	return nil
+}
+
+func orHEAD(rev string) string {
+	if rev == "" {
+		return "HEAD"
+	}
+	return rev
+}
+
+// multihubReportOverride logs, counts and (by policy) raises an Event for an
+// override change.
+func (ctrl *ApplicationController) multihubReportOverride(ctx context.Context, app *appv1.Application, ev multihub.Event, o multihub.Override, message string) {
+	hub := ctrl.multihub.HubID()
+	if ctrl.multihub.Telemetry().Metrics {
+		multihub.DecisionsTotal.WithLabelValues(hub, multihub.PathOverride, string(ev)).Inc()
+	}
+	plan := ctrl.multihub.Reporter().Plan(app.QualifiedName(), multihub.PathOverride, ev, o.By, o.Reason)
+	log.WithFields(applog.GetAppLogFields(app)).WithFields(log.Fields{
+		"multihub.hub":               hub,
+		"multihub.path":              multihub.PathOverride,
+		"multihub.event":             string(ev),
+		"multihub.override_revision": o.Revision,
+		"multihub.override_by":       o.By,
+		"multihub.reason":            o.Reason,
+	}).Log(plan.LogLevel, message)
+	if plan.Event {
+		reason := EventReasonMultihubOverrideSet
+		if ev == multihub.EventOverrideCleared {
+			reason = EventReasonMultihubOverrideCleared
+		}
+		ctrl.logAppEvent(ctx, app, argo.EventInfo{Type: corev1.EventTypeNormal, Reason: reason}, message)
+	}
 }

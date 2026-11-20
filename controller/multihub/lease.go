@@ -139,18 +139,20 @@ func (k Key) LeaseName() string {
 type Event string
 
 const (
-	EventAcquired     Event = "acquired"      // free (or new) lease taken
-	EventRenewed      Event = "renewed"       // holder extended its own lease
-	EventTakeover     Event = "takeover"      // another hub's lease had expired and was taken
-	EventHeld         Event = "held"          // denied: another hub holds the lease
-	EventSettling     Event = "settling"      // denied: another hub released it moments ago (auto-sync only)
-	EventReleased     Event = "released"      // holder gave it up
-	EventLost         Event = "lost"          // an in-progress operation found its lease taken over
-	EventError        Event = "error"         // could not reach or update the lease
-	EventReleaseError Event = "release_error" // could not release (it will expire)
-	EventMirrorError  Event = "mirror_error"  // could not mirror operation state (C3); a takeover would restart it
-	EventFollowing    Event = "following"     // this hub's operation was taken over by another hub; showing its state (C3)
-	EventDisabled     Event = "disabled"      // coordination is off
+	EventAcquired        Event = "acquired"         // free (or new) lease taken
+	EventRenewed         Event = "renewed"          // holder extended its own lease
+	EventTakeover        Event = "takeover"         // another hub's lease had expired and was taken
+	EventHeld            Event = "held"             // denied: another hub holds the lease
+	EventSettling        Event = "settling"         // denied: another hub released it moments ago (auto-sync only)
+	EventReleased        Event = "released"         // holder gave it up
+	EventLost            Event = "lost"             // an in-progress operation found its lease taken over
+	EventError           Event = "error"            // could not reach or update the lease
+	EventReleaseError    Event = "release_error"    // could not release (it will expire)
+	EventMirrorError     Event = "mirror_error"     // could not mirror operation state (C3); a takeover would restart it
+	EventFollowing       Event = "following"        // this hub's operation was taken over by another hub; showing its state (C3)
+	EventOverrideSet     Event = "override_set"     // a user's sync to a specific revision recorded the override (C5)
+	EventOverrideCleared Event = "override_cleared" // a user's sync to the targetRevision cleared it (C5)
+	EventDisabled        Event = "disabled"         // coordination is off
 )
 
 // Decision is the outcome of an acquire attempt.

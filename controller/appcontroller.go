@@ -1791,6 +1791,17 @@ func (ctrl *ApplicationController) processRequestedAppOperation(app *appv1.Appli
 		}
 	} else {
 		state = NewOperationState(*app.Operation)
+		// multihub (C5): record or clear the override before syncing, so
+		// other hubs' auto-sync doesn't revert a rollback.
+		if multihubGen != 0 {
+			if err := ctrl.multihubApplyOverride(ctx, app, app.Operation); err != nil {
+				state.Phase = synccommon.OperationError
+				state.Message = err.Error()
+				ctrl.setOperationState(ctx, app, state)
+				ctrl.multihubRelease(ctx, app)
+				return
+			}
+		}
 		ctrl.setOperationState(ctx, app, state)
 		logCtx.Infof("Initialized new operation: %v", *app.Operation)
 	}
