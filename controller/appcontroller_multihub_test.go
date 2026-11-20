@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -298,6 +299,27 @@ func TestMultihubInitWiresCommitTimeLookupOnlyWhenEnabled(t *testing.T) {
 	got, err := ctrl.multihubCommitTime(t.Context(), app, "abc123")
 	require.NoError(t, err)
 	assert.True(t, got.Equal(pinT1))
+}
+
+func TestMultihubInitLogsEverySetting(t *testing.T) {
+	ctrl := newFakeController(t.Context(), &fakeData{apps: []runtime.Object{pinTestApp(), &defaultProj}}, nil)
+	clientset, _ := revisionMetadataClient(t, &v1alpha1.RevisionMetadata{Date: &metav1.Time{Time: pinT1}}, nil)
+	t.Setenv(multihub.EnvHubID, "hub-x")
+	t.Setenv(multihub.EnvLogDenialsResetAfter, "45s")
+	hook := captureLogs(t)
+
+	ctrl.multihubInit(clientset)
+
+	var startup *log.Entry
+	for _, e := range hook.AllEntries() {
+		if strings.HasPrefix(e.Message, "multihub coordination enabled") {
+			startup = e
+		}
+	}
+	require.NotNil(t, startup, "startup line logged")
+	assert.Equal(t, "hub-x", startup.Data["multihub.hub"])
+	assert.Equal(t, "changes", startup.Data["multihub.log_denials"])
+	assert.Equal(t, "45s", startup.Data["multihub.log_denials_reset_after"])
 }
 
 // captureLogs swaps the standard logger's hooks for a test hook, and lowers
