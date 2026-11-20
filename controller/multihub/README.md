@@ -37,6 +37,7 @@ set.
 | `ARGOCD_MULTIHUB_LOG_LIFECYCLE` | `true` | Log acquiring and releasing the lease at info. `false` = debug. |
 | `ARGOCD_MULTIHUB_LOG_RENEWALS` | `false` | Log each renewal (every pass of a running operation) at info. `false` = debug. |
 | `ARGOCD_MULTIHUB_LOG_DENIALS` | `changes` | Refusals ("held by hub-b", "settling"): `changes` = info when the event or holder changes for an app, debug for repeats; `all` = info every time; `off` = debug. |
+| `ARGOCD_MULTIHUB_LOG_DENIALS_RESET_AFTER` | `2m` | With `changes`: a repeat refusal or error is reported again once none has been seen for this long, so each new episode gets one info/warn line (and one waiting-operation Event). A continuous episode stays collapsed however long it lasts. `0` = never reset. |
 | `ARGOCD_MULTIHUB_EVENTS` | `true` | Kubernetes Events on the Application (table below). |
 | `ARGOCD_MULTIHUB_METRICS` | `true` | Export `argocd_multihub_lease_decisions_total`. |
 

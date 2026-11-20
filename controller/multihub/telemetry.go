@@ -61,17 +61,18 @@ type Telemetry struct {
 }
 
 func DefaultTelemetry() Telemetry {
-	return Telemetry{LogLifecycle: true, LogDenials: DenialLogChanges, Events: true, Metrics: true}
+	return Telemetry{LogLifecycle: true, LogDenials: DenialLogChanges, DenialsResetAfter: 2 * time.Minute, Events: true, Metrics: true}
 }
 
 func TelemetryFromEnv() Telemetry {
 	d := DefaultTelemetry()
 	t := Telemetry{
-		LogLifecycle: env.ParseBoolFromEnv(EnvLogLifecycle, d.LogLifecycle),
-		LogRenewals:  env.ParseBoolFromEnv(EnvLogRenewals, d.LogRenewals),
-		LogDenials:   DenialLogMode(strings.ToLower(env.StringFromEnv(EnvLogDenials, string(d.LogDenials)))),
-		Events:       env.ParseBoolFromEnv(EnvEvents, d.Events),
-		Metrics:      env.ParseBoolFromEnv(EnvMetrics, d.Metrics),
+		LogLifecycle:      env.ParseBoolFromEnv(EnvLogLifecycle, d.LogLifecycle),
+		LogRenewals:       env.ParseBoolFromEnv(EnvLogRenewals, d.LogRenewals),
+		LogDenials:        DenialLogMode(strings.ToLower(env.StringFromEnv(EnvLogDenials, string(d.LogDenials)))),
+		DenialsResetAfter: env.ParseDurationFromEnv(EnvLogDenialsResetAfter, d.DenialsResetAfter, 0, 24*time.Hour),
+		Events:            env.ParseBoolFromEnv(EnvEvents, d.Events),
+		Metrics:           env.ParseBoolFromEnv(EnvMetrics, d.Metrics),
 	}
 	switch t.LogDenials {
 	case DenialLogChanges, DenialLogAll, DenialLogOff:
@@ -98,7 +99,14 @@ type Report struct {
 type Reporter struct {
 	cfg  Telemetry
 	now  func() time.Time
-	last sync.Map // appKey|path -> event|holder|reason
+	last sync.Map // appKey|path -> seen
+}
+
+// seen is the last refusal or error reported for an (app, path), and when
+// it (or an identical repeat) was last seen.
+type seen struct {
+	what string // event|holder|reason
+	at   time.Time
 }
 
 func NewReporter(cfg Telemetry) *Reporter { return &Reporter{cfg: cfg, now: time.Now} }
@@ -144,9 +152,15 @@ func (r *Reporter) Plan(app, path string, ev Event, holder, reason string) Repor
 }
 
 func (r *Reporter) changed(k string, ev Event, holder, reason string) bool {
-	v := string(ev) + "|" + holder + "|" + reason
+	v := seen{what: string(ev) + "|" + holder + "|" + reason, at: r.now()}
 	prev, loaded := r.last.Swap(k, v)
-	return !loaded || prev.(string) != v
+	if !loaded {
+		return true
+	}
+	p := prev.(seen)
+	// A repeat after a quiet gap starts a new episode: report it again.
+	quiet := r.cfg.DenialsResetAfter > 0 && v.at.Sub(p.at) > r.cfg.DenialsResetAfter
+	return p.what != v.what || quiet
 }
 
 func level(on bool) log.Level {
