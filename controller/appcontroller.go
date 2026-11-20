@@ -173,6 +173,9 @@ type ApplicationController struct {
 	// multihubCommitTime looks up a revision's commit time for the revision
 	// pin. Set in multihubInit; a field so tests can replace it.
 	multihubCommitTime func(ctx context.Context, app *appv1.Application, revision string) (time.Time, error)
+	// multihubRequeueRefresh schedules a refresh of app after a delay; nil =
+	// requestAppRefresh. A field so tests can observe it.
+	multihubRequeueRefresh func(app *appv1.Application, after time.Duration)
 }
 
 // NewApplicationController creates new instance of ApplicationController.

@@ -772,3 +772,34 @@ func TestMultihubClaimOrphanReplacesThePreviousOperationState(t *testing.T) {
 	assert.Equal(t, want, got.Status.OperationState, "exactly the mirrored state: nothing left over from the previous operation")
 	assert.Equal(t, mirrored.Operation.Retry, got.Operation.Retry)
 }
+
+// C3 gap 1 (research/2026-11-20-c3-takeover.md): a hub that sees another
+// hub's running operation schedules a refresh for when that hub's lease
+// expires, so a takeover doesn't wait for the next periodic refresh.
+func TestMultihubClaimOrphanRequeuesAtLeaseExpiry(t *testing.T) {
+	app := pinTestApp()
+	f, _ := orphanFixture(t, app, &fakeData{apps: []runtime.Object{app, &defaultProj}})
+	server, key := f.target(t)
+	_, err := f.hubA.AcquireForOperation(t.Context(), server, key) // hub-a is alive: renews
+	require.NoError(t, err)
+	var got []time.Duration
+	f.ctrl.multihubRequeueRefresh = func(a *v1alpha1.Application, after time.Duration) {
+		assert.Equal(t, app.QualifiedName(), a.QualifiedName())
+		got = append(got, after)
+	}
+
+	assert.False(t, f.ctrl.multihubClaimOrphan(t.Context(), app))
+
+	require.Len(t, got, 1, "one refresh scheduled")
+	assert.Greater(t, got[0], 55*time.Second, "at the lease's expiry (60s lease, just renewed)")
+	assert.LessOrEqual(t, got[0], time.Minute+multihubClaimSlack)
+}
+
+func TestMultihubClaimOrphanDoesNotRequeueWithoutAnOrphan(t *testing.T) {
+	app := pinTestApp()
+	f := newMultihubPinFixture(t, &fakeData{apps: []runtime.Object{app, &defaultProj}}, app)
+	called := false
+	f.ctrl.multihubRequeueRefresh = func(*v1alpha1.Application, time.Duration) { called = true }
+	assert.False(t, f.ctrl.multihubClaimOrphan(t.Context(), app))
+	assert.False(t, called)
+}

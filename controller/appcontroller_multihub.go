@@ -30,6 +30,9 @@ const (
 	// Upper bound on the auto-sync re-check delay. The holder's own sync
 	// changes the destination, which triggers a refresh sooner anyway.
 	multihubMaxAutoSyncRecheck = 15 * time.Second
+	// multihubClaimSlack is added to a lease's remaining time when scheduling
+	// the refresh that may claim it, so the lease has surely expired.
+	multihubClaimSlack = time.Second
 )
 
 // Kubernetes Event reasons emitted on the Application.
