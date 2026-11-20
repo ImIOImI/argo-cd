@@ -846,3 +846,118 @@ func TestMultihubReturningHubKeepsTheOtherHubsFinishedAt(t *testing.T) {
 	assert.True(t, finished.Equal(got.Status.OperationState.FinishedAt), "got %v", got.Status.OperationState.FinishedAt)
 	assert.Nil(t, got.Operation)
 }
+
+func (f *multihubPinFixture) override(t *testing.T) (multihub.Override, bool) {
+	t.Helper()
+	server, key := f.target(t)
+	o, ok, err := f.hubA.CurrentOverride(t.Context(), server, key)
+	require.NoError(t, err)
+	return o, ok
+}
+
+func (f *multihubPinFixture) hubAOverride(t *testing.T, rev string) {
+	t.Helper()
+	server, key := f.target(t)
+	_, err := f.hubA.SetOverride(t.Context(), server, key, rev, "rollback by carol")
+	require.NoError(t, err)
+}
+
+func multihubEntries(hook *logtest.Hook, event string) []*log.Entry {
+	var out []*log.Entry
+	for _, e := range hook.AllEntries() {
+		if e.Data["multihub.event"] == event {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// C5: a rollback (a user's sync to a specific revision) on this hub records
+// an override every hub sees, before syncing.
+func TestMultihubRollbackRecordsTheOverride(t *testing.T) {
+	f, app := operationFixture(t)
+	app.Operation.InitiatedBy = v1alpha1.OperationInitiator{Username: "alice"}
+	hook := captureLogs(t)
+
+	f.ctrl.processRequestedAppOperation(app)
+
+	o, ok := f.override(t)
+	require.True(t, ok, "override recorded")
+	assert.Equal(t, "abc123", o.Revision)
+	assert.Equal(t, "hub-b", o.By)
+	assert.Contains(t, o.Reason, "alice")
+	entries := multihubEntries(hook, "override_set")
+	require.Len(t, entries, 1)
+	assert.Equal(t, log.InfoLevel, entries[0].Level)
+	assert.Equal(t, "abc123", entries[0].Data["multihub.override_revision"])
+}
+
+func TestMultihubSyncToTargetRevisionClearsTheOverride(t *testing.T) {
+	for _, rev := range []string{"", "HEAD"} {
+		t.Run("revision="+rev, func(t *testing.T) {
+			f, app := operationFixture(t)
+			app.Operation.Sync.Revision = rev
+			app.Operation.InitiatedBy = v1alpha1.OperationInitiator{Username: "bob"}
+			f.hubAOverride(t, "e264214")
+			hook := captureLogs(t)
+
+			f.ctrl.processRequestedAppOperation(app)
+
+			_, ok := f.override(t)
+			assert.False(t, ok, "cleared")
+			entries := multihubEntries(hook, "override_cleared")
+			require.Len(t, entries, 1)
+			assert.Equal(t, "e264214", entries[0].Data["multihub.override_revision"])
+		})
+	}
+}
+
+func TestMultihubAutomatedAndPartialSyncsLeaveTheOverride(t *testing.T) {
+	cases := map[string]func(*v1alpha1.Operation){
+		"automated to a revision": func(op *v1alpha1.Operation) {
+			op.InitiatedBy = v1alpha1.OperationInitiator{Automated: true}
+		},
+		"user, partial, to HEAD": func(op *v1alpha1.Operation) {
+			op.InitiatedBy = v1alpha1.OperationInitiator{Username: "bob"}
+			op.Sync.Revision = ""
+			op.Sync.Resources = []v1alpha1.SyncOperationResource{{Kind: "ConfigMap", Name: "lab"}}
+		},
+		"user, dry run, to HEAD": func(op *v1alpha1.Operation) {
+			op.InitiatedBy = v1alpha1.OperationInitiator{Username: "bob"}
+			op.Sync.Revision = ""
+			op.Sync.DryRun = true
+		},
+	}
+	for name, mutate := range cases {
+		t.Run(name, func(t *testing.T) {
+			f, app := operationFixture(t)
+			mutate(app.Operation)
+			f.hubAOverride(t, "e264214")
+
+			f.ctrl.processRequestedAppOperation(app)
+
+			o, ok := f.override(t)
+			require.True(t, ok)
+			assert.Equal(t, "e264214", o.Revision, "untouched")
+			assert.Equal(t, "hub-a", o.By)
+		})
+	}
+}
+
+// If the override can't be recorded, the rollback would be silently reverted
+// by the other hubs (E5): fail it instead.
+func TestMultihubRollbackFailsIfTheOverrideCantBeRecorded(t *testing.T) {
+	f, app := operationFixture(t)
+	app.Operation.InitiatedBy = v1alpha1.OperationInitiator{Username: "alice"}
+	f.spoke.PrependReactor("update", "leases", func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, errors.New("forbidden")
+	})
+
+	f.ctrl.processRequestedAppOperation(app)
+
+	got, err := f.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(app.Namespace).Get(t.Context(), app.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, got.Status.OperationState)
+	assert.Equal(t, synccommon.OperationError, got.Status.OperationState.Phase)
+	assert.Contains(t, got.Status.OperationState.Message, "override")
+}

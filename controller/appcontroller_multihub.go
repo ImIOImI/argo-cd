@@ -472,3 +472,12 @@ func (ctrl *ApplicationController) multihubShowState(ctx context.Context, app *a
 		app.Operation = nil
 	}
 }
+
+// multihubApplyOverride records or clears the C5 override for a new,
+// coordinated operation: a user's sync to a specific revision (e.g. a
+// rollback) records one, so every hub's auto-sync stands down; a user's
+// sync to the app's targetRevision clears it. Automated and partial syncs
+// leave it alone.
+func (ctrl *ApplicationController) multihubApplyOverride(ctx context.Context, app *appv1.Application, op *appv1.Operation) error {
+	return nil
+}
