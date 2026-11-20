@@ -5,6 +5,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -326,4 +327,20 @@ func (ctrl *ApplicationController) multihubRepoCommitTime(repoClientset apiclien
 // multihubMirror records app's operation state on its Lease after a pass
 // (C3), so another hub can take the operation over if this one dies.
 func (ctrl *ApplicationController) multihubMirror(ctx context.Context, app *appv1.Application, generation int32, state *appv1.OperationState) {
+	if !ctrl.multihub.Enabled() || state == nil {
+		return
+	}
+	data, err := json.Marshal(state)
+	if err == nil {
+		var server string
+		var key multihub.Key
+		server, key, err = ctrl.multihubTarget(ctx, app)
+		if err == nil {
+			err = ctrl.multihub.MirrorOperation(ctx, server, key, generation, !state.Phase.Completed(), data)
+		}
+	}
+	if err != nil {
+		d := multihub.Decision{Event: multihub.EventMirrorError, Generation: generation, Reason: err.Error()}
+		ctrl.multihubReport(ctx, app, multihub.PathOperation, d, "multihub: failed to mirror operation state (another hub taking over would restart it): "+err.Error())
+	}
 }

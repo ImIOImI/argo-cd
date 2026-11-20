@@ -1689,9 +1689,12 @@ func (ctrl *ApplicationController) processRequestedAppOperation(app *appv1.Appli
 
 	// multihub: hold the operation lease for every pass of a real (non-dry-run)
 	// operation. Renewing here keeps it alive for the operation's duration.
+	// multihubGen is the lease generation this pass runs under (0 = not coordinated).
+	var multihubGen int32
 	if ctrl.multihub.Enabled() && (app.Operation.Sync == nil || !app.Operation.Sync.DryRun) {
 		// Logging, Events and metrics for every decision happen in multihubAcquire.
 		decision, err := ctrl.multihubAcquire(ctx, app, multihub.PathOperation)
+		multihubGen = decision.Generation
 		switch {
 		case err == nil && !decision.Granted && isOperationInProgress(app):
 			// We were running this operation, and another hub now holds the
@@ -1823,6 +1826,10 @@ func (ctrl *ApplicationController) processRequestedAppOperation(app *appv1.Appli
 
 	ctrl.setOperationState(ctx, app, state)
 	ts.AddCheckpoint("final_set_operation_state_ms")
+	if multihubGen != 0 {
+		// Before releasing, so the final state is what another hub sees.
+		ctrl.multihubMirror(ctx, app, multihubGen, state)
+	}
 	if state.Phase.Completed() {
 		ctrl.multihubRelease(ctx, app)
 	}

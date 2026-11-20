@@ -148,6 +148,7 @@ const (
 	EventLost         Event = "lost"          // an in-progress operation found its lease taken over
 	EventError        Event = "error"         // could not reach or update the lease
 	EventReleaseError Event = "release_error" // could not release (it will expire)
+	EventMirrorError  Event = "mirror_error"  // could not mirror operation state (C3); a takeover would restart it
 	EventDisabled     Event = "disabled"      // coordination is off
 )
 

@@ -140,7 +140,7 @@ func (r *Reporter) Plan(app, path string, ev Event, holder, reason string) Repor
 		}
 		// A waiting operation is something a user started; tell them why.
 		return Report{LogLevel: lvl, Event: r.cfg.Events && changed && path == PathOperation}
-	case EventError, EventReleaseError:
+	case EventError, EventReleaseError, EventMirrorError:
 		// The reason is part of the key: a different error is news.
 		changed := r.changed(k, ev, holder, reason)
 		if changed || r.cfg.LogDenials == DenialLogAll {
