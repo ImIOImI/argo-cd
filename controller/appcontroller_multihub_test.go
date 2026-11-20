@@ -743,3 +743,32 @@ func TestMultihubReturningHubIgnoresADifferentOperation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, synccommon.OperationError, got.Status.OperationState.Phase)
 }
+
+// Found live in E8 (research/2026-11-20-c3-takeover.md): hub-b's Application
+// still had its own previous, finished operation. Merging the mirrored state
+// over it kept that operation's finishedAt, which on a Running operation
+// means "retry pending": hub-b retried from scratch, dropped the mirrored
+// results, and deleted and re-created the running hook.
+func TestMultihubClaimOrphanReplacesThePreviousOperationState(t *testing.T) {
+	app := pinTestApp()
+	finished := metav1.NewTime(time.Date(2026, 11, 20, 11, 0, 30, 0, time.UTC))
+	app.Status.OperationState = &v1alpha1.OperationState{
+		Operation:  v1alpha1.Operation{Sync: &v1alpha1.SyncOperation{Revision: "old111"}, Retry: v1alpha1.RetryStrategy{Limit: 5}},
+		Phase:      synccommon.OperationSucceeded,
+		Message:    "successfully synced (all tasks run)",
+		StartedAt:  metav1.NewTime(time.Date(2026, 11, 20, 11, 0, 0, 0, time.UTC)),
+		FinishedAt: &finished,
+		RetryCount: 2,
+		SyncResult: &v1alpha1.SyncOperationResult{Revision: "old111", Revisions: []string{"old111"}},
+	}
+	f, mirrored := orphanFixture(t, app, &fakeData{apps: []runtime.Object{app, &defaultProj}})
+
+	require.True(t, f.ctrl.multihubClaimOrphan(t.Context(), app))
+
+	got, err := f.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(app.Namespace).Get(t.Context(), app.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	want := mirrored.DeepCopy()
+	want.Operation.Info = got.Status.OperationState.Operation.Info // the takeover note, checked elsewhere
+	assert.Equal(t, want, got.Status.OperationState, "exactly the mirrored state: nothing left over from the previous operation")
+	assert.Equal(t, mirrored.Operation.Retry, got.Operation.Retry)
+}
