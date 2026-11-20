@@ -103,6 +103,9 @@ func (c *Coordinator) MirrorOperation(ctx context.Context, server string, key Ke
 		if holderOf(lease) != c.cfg.HubID || generationOf(lease) != generation {
 			return ErrNotHolder
 		}
+		if lease.Annotations[AnnotationOperation] == enc {
+			return nil // unchanged (gzip output is deterministic)
+		}
 		if lease.Annotations == nil {
 			lease.Annotations = map[string]string{}
 		}
