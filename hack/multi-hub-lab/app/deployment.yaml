@@ -15,7 +15,7 @@ spec:
         # rollout.sh bumps this to force a rollout; with the readiness delay
         # below, the sync waits in wave 0 (Deployment progressing) before it
         # applies wave 1 (the ConfigMap): a long sync phase, for C3 tests.
-        lab/rollout: "1"
+        lab/rollout: "2"
     spec:
       terminationGracePeriodSeconds: 0
       containers:
@@ -25,7 +25,7 @@ spec:
           readinessProbe:
             exec:
               command: ["true"]
-            initialDelaySeconds: 120
+            initialDelaySeconds: 5
             periodSeconds: 2
           resources:
             requests:
