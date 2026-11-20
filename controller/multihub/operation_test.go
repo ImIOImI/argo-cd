@@ -202,3 +202,20 @@ func TestReturnClaimIsFenced(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "hub-b", m.Hub, "unchanged")
 }
+
+// C3 gap 5: passes that change nothing (e.g. every 5-30s while a hook runs)
+// don't rewrite the mirror.
+func TestMirrorSkipsTheWriteWhenUnchanged(t *testing.T) {
+	a, _, spoke, _ := twoHubs(t)
+	d, err := a.AcquireForOperation(t.Context(), server, key)
+	require.NoError(t, err)
+	state := []byte(`{"phase":"Running","message":"waiting for completion of hook"}`)
+	require.NoError(t, a.MirrorOperation(t.Context(), server, key, d.Generation, true, state))
+	before := leaseUpdates(spoke.Actions())
+
+	require.NoError(t, a.MirrorOperation(t.Context(), server, key, d.Generation, true, state))
+	assert.Equal(t, before, leaseUpdates(spoke.Actions()), "same state: no write")
+
+	require.NoError(t, a.MirrorOperation(t.Context(), server, key, d.Generation, false, state))
+	assert.Equal(t, before+1, leaseUpdates(spoke.Actions()), "finished: written")
+}
