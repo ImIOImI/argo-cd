@@ -167,13 +167,19 @@ func (c *Coordinator) ClaimOrphan(ctx context.Context, server string, key Key) (
 			return Claim{}, err
 		}
 		holder := holderOf(lease)
-		// Not ours to claim: nothing mirrored, finished, our own (the
-		// operation processor resumes it), or we already hold the lease.
-		if !ok || !m.Running || m.Hub == c.cfg.HubID || holder == c.cfg.HubID {
-			return Claim{Event: ClaimNone, Mirror: m}, nil
+		if holder == c.cfg.HubID {
+			return Claim{Event: ClaimNone, Mirror: m}, nil // ours: the operation processor runs it
 		}
+		// Another hub holds a live lease: look again when it expires. This
+		// is before the mirror checks, since the holder may not have
+		// mirrored its first pass yet.
 		if holder != "" && !c.expired(lease, now) {
 			return Claim{Event: ClaimWaiting, Mirror: m, RetryAfter: c.remaining(lease, now)}, nil
+		}
+		// Not ours to claim: nothing mirrored, finished, or our own (the
+		// operation processor resumes it).
+		if !ok || !m.Running || m.Hub == c.cfg.HubID {
+			return Claim{Event: ClaimNone, Mirror: m}, nil
 		}
 		take(lease, c.cfg.HubID, c.cfg.LeaseDuration, now)
 		gen := generationOf(lease)
