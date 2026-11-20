@@ -827,3 +827,22 @@ func TestMultihubClaimOrphanGivesTheClaimBackIfTheAppWriteFails(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, multihub.ClaimClaimed, c.Event, "this hub can claim it on its next refresh")
 }
+
+// C3 gap 4: the returning hub shows when the operation actually finished
+// (on the other hub), not when it found out.
+func TestMultihubReturningHubKeepsTheOtherHubsFinishedAt(t *testing.T) {
+	f, app, theirs, gen := returningFixture(t)
+	theirs.Phase = synccommon.OperationSucceeded
+	theirs.Message = "successfully synced (all tasks run)"
+	finished := metav1.NewTime(time.Date(2026, 11, 20, 12, 2, 0, 0, time.UTC).Local())
+	theirs.FinishedAt = &finished
+	f.hubAMirrors(t, gen, theirs)
+
+	f.ctrl.processRequestedAppOperation(app)
+
+	got, err := f.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(app.Namespace).Get(t.Context(), app.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, got.Status.OperationState.FinishedAt)
+	assert.True(t, finished.Equal(got.Status.OperationState.FinishedAt), "got %v", got.Status.OperationState.FinishedAt)
+	assert.Nil(t, got.Operation)
+}
