@@ -545,8 +545,11 @@ func (ctrl *ApplicationController) multihubReportOverride(ctx context.Context, a
 	}).Log(plan.LogLevel, message)
 	if plan.Event {
 		reason := EventReasonMultihubOverrideSet
-		if ev == multihub.EventOverrideCleared {
+		switch ev {
+		case multihub.EventOverrideCleared:
 			reason = EventReasonMultihubOverrideCleared
+		case multihub.EventOverridden:
+			reason = EventReasonMultihubAutoSyncPaused
 		}
 		ctrl.logAppEvent(ctx, app, argo.EventInfo{Type: corev1.EventTypeNormal, Reason: reason}, message)
 	}
