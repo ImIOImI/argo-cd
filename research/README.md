@@ -15,6 +15,7 @@ active/active on two hubs against the same Applications and spoke clusters.
 | 2026-11-14 | [C2 telemetry: logs, Events, metrics + settings](2026-11-14-c2-telemetry.md) | Every lease decision is a structured log line, a metric sample and, for takeover, lost lease, errors and waiting operations, a Kubernetes Event. Repeated refusals collapse to one line per change. Five env settings quiet or expand routine output, but can't silence warnings. Verified live with defaults and with settings switched; also the first live test of a manual sync waiting behind another hub's lease. |
 | 2026-11-14 | [C1: revision pin shared through the destination](2026-11-14-c1-revision-pin.md) | First TDD feature (4 red → green pairs, all proven). Both hubs compare and sync against one agreed revision, stored on the app's Lease and ordered by commit time. One commit with self-heal on now causes **1 sync** (stock 11, C2 alone 9). The stale hub adopts the pin within ~1s and never reverts. Found that refusal-log dedup never expires. |
 | 2026-11-20 | [Refusal-log dedup expires after a quiet gap](2026-11-20-refusal-dedup-expiry.md) | Fixes the C1 finding: a refusal that repeats an earlier one is logged at info again after `ARGOCD_MULTIHUB_LOG_DENIALS_RESET_AFTER` (default 2m) of quiet, while a continuous episode stays collapsed. 2 red → green pairs. Verified live over three E7 episodes. |
+| 2026-11-20 | [C3: taking over an operation when its hub dies](2026-11-20-c3-takeover.md) | The holder mirrors its operation state on the Lease. When it dies, the other hub resumes **the same operation**, so a PreSync hook killed mid-run runs **once** (control: twice, overlapping). A hub that comes back takes the result instead of re-running (control: it re-ran the sync phase). The first live run found a bug the unit tests missed (a stale `finishedAt` turned the takeover into a retry); it was fixed test-first and re-run. 5 red → green pairs. |
 
 Raw data for each note is in `data/<date>-<slug>/`.
 
@@ -29,15 +30,17 @@ What the fork has to fix. Each column is re-measured as each coordination
 change (C1–C6 in the design doc) lands. The fork columns run the fork's binary
 (master) on v3.6.1 images.
 
-| Problem | Stock v3.6.1 | Fork, C2 | Fork, C1 + C2 | Target |
-|---------|--------------|----------|---------------|--------|
-| Writes to the spoke when nothing changed (E1) | 0 | — | — | 0 |
-| Syncs per commit, self-heal on (E2) | 11 (6 hub-a, 5 hub-b), overlapping | 9 (5 / 4), serialized | **1** (1 / 0) | 1 |
-| Time the hubs disagree after a commit (E2) | ~4m50s | flapping ~1.5 min | **~1s** (pin set → adopted) | ≈ 0 |
-| Spoke shows the *old* generation after a commit | possible: last write raced at 12:02:32 | still possible (hub-b reverts on its turn) | **no revert observed** | never |
-| Full syncs when both hubs discover a commit together (E7) | 2 (same binary, lease off) | **1** | **1** | 1 |
-| Hook runs in that case | 2 if starts are ≥1s apart (R0), 1 if same second (E7 control) | **1** | **1** | 1 |
-| Syncs per commit, self-heal off (E4) | 1 (hub-b skips), but drift is never corrected | — | — | 1, with self-heal on |
-| Manual rollback on one hub survives (E5) | no: reverted by the other hub in 1s, and the rolling-back hub still shows Succeeded + Synced | — | — (C5) | yes, on every hub, until cleared |
+| Problem | Stock v3.6.1 | Fork, C2 | Fork, C1 + C2 | Fork, C1 + C2 + C3 | Target |
+|---------|--------------|----------|---------------|--------------------|--------|
+| Writes to the spoke when nothing changed (E1) | 0 | — | — | — | 0 |
+| Syncs per commit, self-heal on (E2) | 11 (6 hub-a, 5 hub-b), overlapping | 9 (5 / 4), serialized | **1** (1 / 0) | — | 1 |
+| Time the hubs disagree after a commit (E2) | ~4m50s | flapping ~1.5 min | **~1s** (pin set → adopted) | — | ≈ 0 |
+| Spoke shows the *old* generation after a commit | possible: last write raced at 12:02:32 | still possible (hub-b reverts on its turn) | **no revert observed** | — | never |
+| Full syncs when both hubs discover a commit together (E7) | 2 (same binary, lease off) | **1** | **1** | — | 1 |
+| Hook runs in that case | 2 if starts are ≥1s apart (R0), 1 if same second (E7 control) | **1** | **1** | — | 1 |
+| Syncs per commit, self-heal off (E4) | 1 (hub-b skips), but drift is never corrected | — | — | — | 1, with self-heal on |
+| Manual rollback on one hub survives (E5) | no: reverted by the other hub in 1s, and the rolling-back hub still shows Succeeded + Synced | — | — (C5) | — | yes, on every hub, until cleared |
+| Hook runs when the syncing hub dies mid-hook (E8) | — | — | 2, overlapping (control) | **1** (adopted) | 1 |
+| Hub that died comes back after the other finished (E8) | — | — | resumes its stale operation, re-runs the sync phase | **takes the result**, runs nothing | no repeat |
 
 "—" = not re-measured for that change.

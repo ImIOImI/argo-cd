@@ -1,0 +1,6 @@
+== hub-a
+13:09:00 info  following operation hub-b  -   multihub: this operation was taken over by hub-b; showing its state (Succeeded: successfully synced (all tasks run))
+== hub-b
+13:07:18 info  held      auto-sync hub-a  -   Skipping auto-sync: operation lease held by hub-a (rechecking in 11.667s)
+13:07:33 warning takeover  takeover  hub-a  25  multihub: took over the running operation from hub-a (its lease expired); resuming it from "waiting for completion of hook batch/Job/lab-presync-fa45dd9-presync-1795179987", started 2026-11-20T13:06:27Z (generation 25)
+13:08:50 info  released  operation hub-b  -   multihub: released operation lease

@@ -15,6 +15,12 @@ Implemented so far:
   commit (by commit time, read from the repo-server). A hub that's behind
   compares again at the pin instead of reverting. Not applied to
   multi-source, helm or OCI apps.
+- **C3, takeover:** the lease holder mirrors its operation state onto the
+  same Lease after every pass. If it dies, another hub claims the running
+  operation once the lease expires and resumes **the same operation** (same
+  `startedAt`, initiator and per-resource progress), so a running hook is
+  adopted, not run again. A hub that comes back with a stale copy of that
+  operation follows the other hub's state instead of resuming it.
 
 ## Configuration
 
@@ -61,8 +67,8 @@ plus:
 | Field | Value |
 |---|---|
 | `multihub.hub` | this hub |
-| `multihub.path` | `auto-sync` or `operation` |
-| `multihub.event` | `acquired`, `renewed`, `takeover`, `held`, `settling`, `released`, `lost`, `error`, `release_error` |
+| `multihub.path` | `auto-sync`, `operation` or `takeover` (claiming another hub's orphaned operation) |
+| `multihub.event` | `acquired`, `renewed`, `takeover`, `held`, `settling`, `released`, `lost`, `error`, `release_error`, `mirror_error`, `following` |
 | `multihub.holder` | hub holding the lease (or that just released it, for `settling`) |
 | `multihub.generation` | fencing token (`leaseTransitions`), when granted |
 | `multihub.reason` | free-text reason / error |
@@ -75,9 +81,9 @@ Messages keep upstream wording where one exists, e.g.
 |---|---|
 | `acquired`, `released` | info (`LOG_LIFECYCLE`) |
 | `renewed` | debug (info with `LOG_RENEWALS`) |
-| `held`, `settling` | per `LOG_DENIALS` |
+| `held`, `settling`, `following` | per `LOG_DENIALS` |
 | `takeover`, `lost` | **warn** |
-| `error`, `release_error` | **warn** on change, debug for repeats (warn every time with `LOG_DENIALS=all`) |
+| `error`, `release_error`, `mirror_error` | **warn** on change, debug for repeats (warn every time with `LOG_DENIALS=all`) |
 
 Startup logs one line with the effective configuration:
 `multihub coordination enabled: hub id "hub-a"` with `multihub.*` fields
@@ -102,6 +108,11 @@ Revision-pin decisions use the same fields with `multihub.path=pin`, plus
 | `MultihubLeaseError` | Warning | the lease could not be read or updated (first occurrence of each distinct error) |
 | `MultihubLeaseReleaseError` | Warning | the lease could not be released (it expires on its own) |
 | `MultihubOperationWaiting` | Normal | an operation (e.g. a manual sync) is waiting for another hub's lease (once per wait) |
+| `MultihubOperationTakenOver` | Normal | this hub's in-progress operation was taken over by another hub; this hub now shows that hub's state |
+
+A takeover by the claim path also raises `MultihubLeaseTakeover`, and the
+operation carries `info: multihub=taken over from <hub>`. A failed mirror
+(`mirror_error`) raises `MultihubLeaseError`.
 
 Routine acquire/release has no Event. Upstream's `OperationStarted` /
 `OperationCompleted` already cover operations.
@@ -110,7 +121,7 @@ Routine acquire/release has no Event. Upstream's `OperationStarted` /
 
 `argocd_multihub_lease_decisions_total{hub, path, event}`: a counter on the
 controller's existing `/metrics` endpoint. `path` is `auto-sync`,
-`operation` or `pin`. Useful queries:
+`operation`, `pin` or `takeover`. Useful queries:
 
 ```promql
 # takeovers, should be ~0 outside of hub failures
@@ -132,4 +143,9 @@ shows:
 - the `multihub.argoproj.io/released-by` / `released-at` annotations from
   the last release;
 - the revision pin (`multihub.argoproj.io/pinned-revision`,
-  `pinned-commit-time`, `pinned-by`, `pinned-at`). That's current state only, not history.
+  `pinned-commit-time`, `pinned-by`, `pinned-at`). That's current state only, not history;
+- the mirrored operation (`multihub.argoproj.io/operation`):
+  `base64(gzip(header JSON + "\n" + OperationState JSON))`, where the header
+  is `{"hub","generation","running"}`. Capped at 200KiB. To decode it:
+  `kubectl ... -o jsonpath='{.metadata.annotations.multihub\.argoproj\.io/operation}' | base64 -d | gunzip`
+  (or `hack/multi-hub-lab/opstate.sh`).

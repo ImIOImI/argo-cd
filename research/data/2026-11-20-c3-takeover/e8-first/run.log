@@ -1,0 +1,90 @@
+E8-start=2026-11-20T12:52:50
+sleep 120
+pushed generation 15 at 06:52:52
+hard refresh requested on hub-a at 12:52:52Z
+lease held by hub-a at 12:52:54Z
+hook running: lab-presync-33f5ec7-presync-1795179174 at 12:52:56Z
+hub-a controller stopped at 12:53:05Z
+hub-a Running startedAt=2026-11-20T12:52:54Z finishedAt=None by=auto rev=33f5ec7  op-pending=True | waiting for completion of hook batch/Job/lab-presync-33f5ec7-presync-1795179174
+hub-b Succeeded startedAt=2026-11-20T12:21:02Z finishedAt=2026-11-20T12:21:20Z by=auto rev=217858e  op-pending=False | successfully synced (all tasks run)
+lease holder=hub-a gen=22 renew=2026-11-20T12:52:56.657832Z
+mirror hub=hub-a gen=22 running=True phase=Running startedAt=2026-11-20T12:52:54Z | waiting for completion of hook batch/Job/lab-presync-33f5ec7-presync-1795179174
+hook jobs:
+lab-presync-22fcada-presync-1795176731   2026-11-20T12:12:11Z   1
+lab-presync-f4c8cca-presync-1795176986   2026-11-20T12:16:26Z   1
+lab-presync-217858e-presync-1795177262   2026-11-20T12:21:02Z   1
+lab-presync-33f5ec7-presync-1795179174   2026-11-20T12:52:54Z   <none>
+--- 12:53:12
+hub-b Succeeded startedAt=2026-11-20T12:21:02Z finishedAt=2026-11-20T12:21:20Z by=auto rev=217858e  op-pending=False | successfully synced (all tasks run)
+lease holder=hub-a gen=22 renew=2026-11-20T12:52:56.657832Z
+mirror hub=hub-a gen=22 running=True phase=Running startedAt=2026-11-20T12:52:54Z | waiting for completion of hook batch/Job/lab-presync-33f5ec7-presync-1795179174
+hook jobs:
+lab-presync-22fcada-presync-1795176731   2026-11-20T12:12:11Z   1
+lab-presync-f4c8cca-presync-1795176986   2026-11-20T12:16:26Z   1
+lab-presync-217858e-presync-1795177262   2026-11-20T12:21:02Z   1
+lab-presync-33f5ec7-presync-1795179174   2026-11-20T12:52:54Z   <none>
+--- 12:54:00
+hub-b Running startedAt=2026-11-20T12:52:54Z finishedAt=None by=auto rev=33f5ec7 info=multihub=taken over from hub-a op-pending=True | waiting for deletion of hook batch/Job/lab-presync-33f5ec7-presync-1795179174
+lease holder=hub-b gen=23 renew=2026-11-20T12:53:59.004677Z
+mirror hub=hub-b gen=23 running=True phase=Running startedAt=2026-11-20T12:52:54Z | waiting for deletion of hook batch/Job/lab-presync-33f5ec7-presync-1795179174
+hook jobs:
+lab-presync-22fcada-presync-1795176731   2026-11-20T12:12:11Z   1
+lab-presync-f4c8cca-presync-1795176986   2026-11-20T12:16:26Z   1
+lab-presync-217858e-presync-1795177262   2026-11-20T12:21:02Z   1
+lab-presync-33f5ec7-presync-1795179174   2026-11-20T12:52:54Z   <none>
+--- 12:54:36
+hub-b Running startedAt=2026-11-20T12:52:54Z finishedAt=None by=auto rev=33f5ec7 info=multihub=taken over from hub-a op-pending=True | waiting for completion of hook batch/Job/lab-presync-33f5ec7-presync-1795179174
+lease holder=hub-b gen=23 renew=2026-11-20T12:54:33.868363Z
+mirror hub=hub-b gen=23 running=True phase=Running startedAt=2026-11-20T12:52:54Z | waiting for completion of hook batch/Job/lab-presync-33f5ec7-presync-1795179174
+hook jobs:
+lab-presync-22fcada-presync-1795176731   2026-11-20T12:12:11Z   1
+lab-presync-f4c8cca-presync-1795176986   2026-11-20T12:16:26Z   1
+lab-presync-217858e-presync-1795177262   2026-11-20T12:21:02Z   1
+lab-presync-33f5ec7-presync-1795179174   2026-11-20T12:54:31Z   <none>
+--- 12:55:16
+hub-b Running startedAt=2026-11-20T12:52:54Z finishedAt=None by=auto rev=33f5ec7 info=multihub=taken over from hub-a op-pending=True | waiting for completion of hook batch/Job/lab-presync-33f5ec7-presync-1795179174
+lease holder=hub-b gen=23 renew=2026-11-20T12:55:07.158035Z
+mirror hub=hub-b gen=23 running=True phase=Running startedAt=2026-11-20T12:52:54Z | waiting for completion of hook batch/Job/lab-presync-33f5ec7-presync-1795179174
+hook jobs:
+lab-presync-22fcada-presync-1795176731   2026-11-20T12:12:11Z   1
+lab-presync-f4c8cca-presync-1795176986   2026-11-20T12:16:26Z   1
+lab-presync-217858e-presync-1795177262   2026-11-20T12:21:02Z   1
+lab-presync-33f5ec7-presync-1795179174   2026-11-20T12:54:31Z   <none>
+--- 12:55:52
+hub-b Running startedAt=2026-11-20T12:52:54Z finishedAt=None by=auto rev=33f5ec7 info=multihub=taken over from hub-a op-pending=True | waiting for completion of hook batch/Job/lab-presync-33f5ec7-presync-1795179174
+lease holder=hub-b gen=23 renew=2026-11-20T12:55:40.570728Z
+mirror hub=hub-b gen=23 running=True phase=Running startedAt=2026-11-20T12:52:54Z | waiting for completion of hook batch/Job/lab-presync-33f5ec7-presync-1795179174
+hook jobs:
+lab-presync-22fcada-presync-1795176731   2026-11-20T12:12:11Z   1
+lab-presync-f4c8cca-presync-1795176986   2026-11-20T12:16:26Z   1
+lab-presync-217858e-presync-1795177262   2026-11-20T12:21:02Z   1
+lab-presync-33f5ec7-presync-1795179174   2026-11-20T12:54:31Z   <none>
+--- 12:56:15
+hub-b Running startedAt=2026-11-20T12:52:54Z finishedAt=None by=auto rev=33f5ec7 info=multihub=taken over from hub-a op-pending=True | waiting for completion of hook batch/Job/lab-presync-33f5ec7-presync-1795179174
+lease holder=hub-b gen=23 renew=2026-11-20T12:56:13.971425Z
+mirror hub=hub-b gen=23 running=True phase=Running startedAt=2026-11-20T12:52:54Z | waiting for completion of hook batch/Job/lab-presync-33f5ec7-presync-1795179174
+hook jobs:
+lab-presync-22fcada-presync-1795176731   2026-11-20T12:12:11Z   1
+lab-presync-f4c8cca-presync-1795176986   2026-11-20T12:16:26Z   1
+lab-presync-217858e-presync-1795177262   2026-11-20T12:21:02Z   1
+lab-presync-33f5ec7-presync-1795179174   2026-11-20T12:54:31Z   <none>
+--- 12:56:59
+hub-b Succeeded startedAt=2026-11-20T12:52:54Z finishedAt=2026-11-20T12:56:57Z by=auto rev=33f5ec7 info=multihub=taken over from hub-a op-pending=False | successfully synced (all tasks run)
+lease holder=- gen=23 renew=2026-11-20T12:56:56.625556Z
+mirror hub=hub-b gen=23 running=False phase=Succeeded startedAt=2026-11-20T12:52:54Z | successfully synced (all tasks run)
+hook jobs:
+lab-presync-22fcada-presync-1795176731   2026-11-20T12:12:11Z   1
+lab-presync-f4c8cca-presync-1795176986   2026-11-20T12:16:26Z   1
+lab-presync-217858e-presync-1795177262   2026-11-20T12:21:02Z   1
+lab-presync-33f5ec7-presync-1795179174   2026-11-20T12:54:31Z   1
+=== E8 return
+hub-a controller running at 13:01:21Z
+hub-a Succeeded startedAt=2026-11-20T12:52:54Z finishedAt=2026-11-20T13:01:21Z by=auto rev=33f5ec7 info=multihub=taken over from hub-a op-pending=False | successfully synced (all tasks run)
+hub-b Succeeded startedAt=2026-11-20T12:52:54Z finishedAt=2026-11-20T12:56:57Z by=auto rev=33f5ec7 info=multihub=taken over from hub-a op-pending=False | successfully synced (all tasks run)
+lease holder=- gen=23 renew=2026-11-20T12:56:56.625556Z
+mirror hub=hub-b gen=23 running=False phase=Succeeded startedAt=2026-11-20T12:52:54Z | successfully synced (all tasks run)
+hook jobs:
+lab-presync-22fcada-presync-1795176731   2026-11-20T12:12:11Z   1
+lab-presync-f4c8cca-presync-1795176986   2026-11-20T12:16:26Z   1
+lab-presync-217858e-presync-1795177262   2026-11-20T12:21:02Z   1
+lab-presync-33f5ec7-presync-1795179174   2026-11-20T12:54:31Z   1

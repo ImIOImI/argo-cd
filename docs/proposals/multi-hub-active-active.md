@@ -94,6 +94,13 @@ different things** or **acting twice**. The code paths behind this:
   instead of creating a second one. Two hubs that start separate operations
   get different `startedAt` values, so their hooks are duplicated (F3).
 
+- **Correction (2026-11-20, E8):** the same name alone doesn't adopt a
+  running hook. gitops-engine treats a hook with no entry in the
+  operation's per-resource results as not started, and with
+  `BeforeHookCreation` it deletes and re-creates the live one. Takeover
+  has to carry the results too (C3 mirrors the whole `OperationState`).
+  See [research/2026-11-20-c3-takeover.md](../../research/2026-11-20-c3-takeover.md), R2.
+
 ### F6. Manual operations are local
 - `Sync` and `Rollback` (`server/application/application.go:2144`, `:2341`)
   write an operation onto the hub's own Application CR. A rollback on hub B
@@ -201,7 +208,12 @@ sends.
    The pin lives on the Lease (annotations), not a separate
    `SyncCoordination` object, and is ordered by commit time, not ancestry.*
 4. **C3**: kill hub-a mid-sync, including during a running PreSync hook,
-   and expect hub-b to adopt the hook rather than run it again.
+   and expect hub-b to adopt the hook rather than run it again. *Status:
+   implemented test-first; E8 (hub-a killed mid-hook) runs the hook once
+   instead of twice, and a returning hub takes the result instead of
+   resuming its stale operation. The mirror lives on the Lease
+   (annotation), not `status.operation`. See
+   [research/2026-11-20-c3-takeover.md](../../research/2026-11-20-c3-takeover.md).*
 5. **C4, C5, C6.**
 
 Keep all coordination logic in a new `controller/multihub` package behind an

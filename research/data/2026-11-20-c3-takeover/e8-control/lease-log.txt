@@ -1,0 +1,7 @@
+== hub-a
+13:18:27 info  acquired  operation hub-a  28  multihub: operation lease acquired (generation 28)
+13:18:27 info  released  operation hub-a  -   multihub: released operation lease
+== hub-b
+13:14:51 info  adopted   pin       -      -   multihub: using pinned revision 5332ef85212a2879660df6bb1779821013cdae8e (pinned by hub-a) instead of this hub's fa45dd9e1d8d4a2badca3584e26f38381fa1d7ee
+13:15:53 warning takeover  auto-sync hub-b  27  multihub: operation lease acquired (lease held by hub-a expired); took it over (generation 27)
+13:18:16 info  released  operation hub-b  -   multihub: released operation lease

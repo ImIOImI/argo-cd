@@ -1,0 +1,10 @@
+hub-a Succeeded startedAt=2026-11-20T13:06:27Z finishedAt=2026-11-20T13:09:00Z by=auto rev=fa45dd9 info=multihub=taken over from hub-a op-pending=False | successfully synced (all tasks run)
+hub-b Succeeded startedAt=2026-11-20T13:06:27Z finishedAt=2026-11-20T13:08:50Z by=auto rev=fa45dd9 info=multihub=taken over from hub-a op-pending=False | successfully synced (all tasks run)
+lease holder=- gen=25 renew=2026-11-20T13:08:50.007581Z
+mirror hub=hub-b gen=25 running=False phase=Succeeded startedAt=2026-11-20T13:06:27Z | successfully synced (all tasks run)
+hook jobs:
+lab-presync-22fcada-presync-1795176731   2026-11-20T12:12:11Z   1
+lab-presync-f4c8cca-presync-1795176986   2026-11-20T12:16:26Z   1
+lab-presync-217858e-presync-1795177262   2026-11-20T12:21:02Z   1
+lab-presync-33f5ec7-presync-1795179174   2026-11-20T12:54:31Z   1
+lab-presync-fa45dd9-presync-1795179987   2026-11-20T13:06:27Z   1
