@@ -381,14 +381,17 @@ func (ctrl *ApplicationController) multihubClaimOrphan(ctx context.Context, app 
 	op := state.Operation.DeepCopy()
 	op.Info = append(op.Info, &appv1.Info{Name: "multihub", Value: "taken over from " + claim.Mirror.Hub})
 	state.Operation = *op
-	patch, err := json.Marshal(map[string]any{
-		"operation": op,
-		"status":    map[string]any{"operationState": state},
+	// A JSON patch "add" replaces each value whole. A merge patch would keep
+	// fields the mirror leaves out (e.g. finishedAt of this hub's previous
+	// operation, which on a Running operation means "retry pending").
+	patch, err := json.Marshal([]map[string]any{
+		{"op": "add", "path": "/operation", "value": op},
+		{"op": "add", "path": "/status/operationState", "value": state},
 	})
 	if err != nil {
 		return fail(err)
 	}
-	if _, err := ctrl.PatchAppWithWriteBack(ctx, app.Name, app.Namespace, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+	if _, err := ctrl.PatchAppWithWriteBack(ctx, app.Name, app.Namespace, types.JSONPatchType, patch, metav1.PatchOptions{}); err != nil {
 		return fail(fmt.Errorf("set operation taken over from %s: %w", claim.Mirror.Hub, err))
 	}
 	app.Operation = op
