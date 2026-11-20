@@ -495,3 +495,139 @@ func TestMultihubMirrorFailureWarns(t *testing.T) {
 	}
 	assert.True(t, warned, "a failed mirror is a warning: takeover would restart this operation")
 }
+
+// orphanFixture: hub-a was running a sync of app (PreSync hook in flight),
+// mirrored it, and then died: its lease has expired. hub-b's controller has
+// no operation on its own copy of app.
+func orphanFixture(t *testing.T, app *v1alpha1.Application, data *fakeData) (*multihubPinFixture, *v1alpha1.OperationState) {
+	t.Helper()
+	f := newMultihubPinFixture(t, data, app)
+	server, key := f.target(t)
+	d, err := f.hubA.AcquireForOperation(t.Context(), server, key)
+	require.NoError(t, err)
+	state := &v1alpha1.OperationState{
+		Operation: v1alpha1.Operation{
+			Sync:        &v1alpha1.SyncOperation{Revision: "abc123"},
+			InitiatedBy: v1alpha1.OperationInitiator{Username: "alice"},
+		},
+		Phase:     synccommon.OperationRunning,
+		Message:   "waiting for completion of hook batch/Job/presync",
+		StartedAt: metav1.NewTime(time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC).Local()),
+		SyncResult: &v1alpha1.SyncOperationResult{
+			Revision:  "abc123",
+			Resources: v1alpha1.ResourceResults{{Kind: "Job", Name: "presync-abc123-presync-1795089600", HookType: "PreSync", HookPhase: synccommon.OperationRunning}},
+		},
+	}
+	raw, err := json.Marshal(state)
+	require.NoError(t, err)
+	require.NoError(t, f.hubA.MirrorOperation(t.Context(), server, key, d.Generation, true, raw))
+	f.expireLease(t)
+	return f, state
+}
+
+// expireLease backdates the lease's renewTime past its duration, as if its
+// holder had stopped renewing it.
+func (f *multihubPinFixture) expireLease(t *testing.T) {
+	t.Helper()
+	_, key := f.target(t)
+	leases := f.spoke.CoordinationV1().Leases(multihub.DefaultNamespace)
+	lease, err := leases.Get(t.Context(), key.LeaseName(), metav1.GetOptions{})
+	require.NoError(t, err)
+	past := metav1.NewMicroTime(time.Now().Add(-2 * time.Minute))
+	lease.Spec.RenewTime = &past
+	_, err = leases.Update(t.Context(), lease, metav1.UpdateOptions{})
+	require.NoError(t, err)
+}
+
+func TestMultihubClaimOrphanResumesTheOperation(t *testing.T) {
+	app := pinTestApp()
+	f, mirrored := orphanFixture(t, app, &fakeData{apps: []runtime.Object{app, &defaultProj}})
+	hook := captureLogs(t)
+
+	require.True(t, f.ctrl.multihubClaimOrphan(t.Context(), app))
+
+	got, err := f.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(app.Namespace).Get(t.Context(), app.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, got.Operation, "the operation is set on this hub's Application")
+	assert.Equal(t, "abc123", got.Operation.Sync.Revision)
+	assert.Equal(t, "alice", got.Operation.InitiatedBy.Username, "still alice's operation")
+	require.NotNil(t, got.Status.OperationState)
+	assert.True(t, mirrored.StartedAt.Equal(&got.Status.OperationState.StartedAt), "same startedAt: same hook names")
+	assert.Equal(t, synccommon.OperationRunning, got.Status.OperationState.Phase)
+	assert.Equal(t, mirrored.SyncResult.Resources, got.Status.OperationState.SyncResult.Resources, "progress carried over")
+	assert.Contains(t, got.Operation.Info, &v1alpha1.Info{Name: "multihub", Value: "taken over from hub-a"})
+	assert.NotNil(t, app.Operation, "the in-memory app too, so this refresh doesn't auto-sync")
+	assert.Equal(t, 1, f.ctrl.appOperationQueue.Len(), "queued for the operation processor")
+
+	server, key := f.target(t)
+	d, err := f.ctrl.multihub.AcquireForOperation(t.Context(), server, key)
+	require.NoError(t, err)
+	assert.Equal(t, multihub.EventRenewed, d.Event, "hub-b holds the lease")
+
+	var warned bool
+	for _, e := range hook.AllEntries() {
+		if e.Data["multihub.path"] == multihub.PathTakeover && e.Data["multihub.event"] == string(multihub.EventTakeover) {
+			warned = e.Level == log.WarnLevel
+			assert.Equal(t, "hub-a", e.Data["multihub.holder"], "who it was taken from")
+		}
+	}
+	assert.True(t, warned, "a takeover is a warning")
+}
+
+func TestMultihubClaimOrphanLeavesLiveAndOwnOperationsAlone(t *testing.T) {
+	app := pinTestApp()
+	f, _ := orphanFixture(t, app, &fakeData{apps: []runtime.Object{app, &defaultProj}})
+	server, key := f.target(t)
+
+	// hub-b already has an operation of its own: never replaced.
+	own := app.DeepCopy()
+	own.Operation = &v1alpha1.Operation{Sync: &v1alpha1.SyncOperation{Revision: "mine"}}
+	assert.False(t, f.ctrl.multihubClaimOrphan(t.Context(), own))
+	assert.Equal(t, "mine", own.Operation.Sync.Revision)
+
+	// hub-a is alive again (renews): nothing to claim yet.
+	_, err := f.hubA.AcquireForOperation(t.Context(), server, key)
+	require.NoError(t, err)
+	assert.False(t, f.ctrl.multihubClaimOrphan(t.Context(), app))
+	assert.Nil(t, app.Operation)
+	assert.Equal(t, 0, f.ctrl.appOperationQueue.Len())
+}
+
+func TestMultihubClaimOrphanDisabled(t *testing.T) {
+	app := pinTestApp()
+	ctrl := newFakeController(t.Context(), &fakeData{apps: []runtime.Object{app, &defaultProj}}, nil)
+	assert.False(t, ctrl.multihubClaimOrphan(t.Context(), app))
+}
+
+// End to end through the refresh loop: hub-b's copy of an auto-sync app is
+// OutOfSync, and hub-a died mid-sync. The refresh resumes hub-a's operation
+// instead of auto-syncing a new one (which would run every hook again).
+func TestMultihubRefreshResumesOrphanInsteadOfAutoSyncing(t *testing.T) {
+	app := newFakeApp() // automated sync policy
+	data := &fakeData{
+		apps: []runtime.Object{app, &defaultProj},
+		manifestResponses: []*apiclient.ManifestResponse{{
+			Manifests: []string{orphanTestConfigMap}, Namespace: test.FakeDestNamespace, Server: test.FakeClusterURL, Revision: "abc123",
+		}},
+		managedLiveObjs: map[kube.ResourceKey]*unstructured.Unstructured{},
+	}
+	f, mirrored := orphanFixture(t, app, data)
+	f.lookup["abc123"] = pinT1
+
+	key, err := cache.MetaNamespaceKeyFunc(app)
+	require.NoError(t, err)
+	f.ctrl.requestAppRefresh(app.QualifiedName(), CompareWithLatest.Pointer(), nil)
+	f.ctrl.appRefreshQueue.Add(key)
+	f.ctrl.processAppRefreshQueueItem()
+
+	got, err := f.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(app.Namespace).Get(t.Context(), app.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, got.Operation)
+	assert.False(t, got.Operation.InitiatedBy.Automated, "hub-a's (alice's) operation, not a new auto-sync")
+	require.NotNil(t, got.Status.OperationState)
+	assert.True(t, mirrored.StartedAt.Equal(&got.Status.OperationState.StartedAt))
+}
+
+// orphanTestConfigMap is missing from the (empty) live state, so the app is
+// OutOfSync and, with automated sync, would auto-sync.
+const orphanTestConfigMap = `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"lab","namespace":"` + test.FakeDestNamespace + `"},"data":{"generation":"1"}}`

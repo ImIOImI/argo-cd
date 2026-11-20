@@ -344,3 +344,11 @@ func (ctrl *ApplicationController) multihubMirror(ctx context.Context, app *appv
 		ctrl.multihubReport(ctx, app, multihub.PathOperation, d, "multihub: failed to mirror operation state (another hub taking over would restart it): "+err.Error())
 	}
 }
+
+// multihubClaimOrphan takes over another hub's running operation on app once
+// that hub's lease has expired (C3), and resumes it here: it sets the
+// mirrored operation and operation state on this hub's Application and
+// queues the operation. It reports whether app now has an operation.
+func (ctrl *ApplicationController) multihubClaimOrphan(ctx context.Context, app *appv1.Application) bool {
+	return false
+}

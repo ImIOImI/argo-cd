@@ -174,7 +174,8 @@ func level(on bool) log.Level {
 const (
 	PathAutoSync  = "auto-sync"
 	PathOperation = "operation"
-	PathPin       = "pin" // revision pin decisions (event = PinEvent)
+	PathPin       = "pin"      // revision pin decisions (event = PinEvent)
+	PathTakeover  = "takeover" // claiming another hub's orphaned operation (C3)
 )
 
 // DecisionsTotal counts every lease decision by hub, code path and event.
