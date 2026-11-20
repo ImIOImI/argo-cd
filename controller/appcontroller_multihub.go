@@ -34,11 +34,12 @@ const (
 
 // Kubernetes Event reasons emitted on the Application.
 const (
-	EventReasonMultihubTakeover         = "MultihubLeaseTakeover"
-	EventReasonMultihubLost             = "MultihubLeaseLost"
-	EventReasonMultihubError            = "MultihubLeaseError"
-	EventReasonMultihubReleaseError     = "MultihubLeaseReleaseError"
-	EventReasonMultihubOperationWaiting = "MultihubOperationWaiting"
+	EventReasonMultihubTakeover           = "MultihubLeaseTakeover"
+	EventReasonMultihubLost               = "MultihubLeaseLost"
+	EventReasonMultihubError              = "MultihubLeaseError"
+	EventReasonMultihubReleaseError       = "MultihubLeaseReleaseError"
+	EventReasonMultihubOperationTakenOver = "MultihubOperationTakenOver"
+	EventReasonMultihubOperationWaiting   = "MultihubOperationWaiting"
 )
 
 // multihubInit is called once from NewApplicationController.
@@ -185,6 +186,8 @@ func multihubEventReason(ev multihub.Event) string {
 		return EventReasonMultihubReleaseError
 	case multihub.EventHeld, multihub.EventSettling:
 		return EventReasonMultihubOperationWaiting
+	case multihub.EventFollowing:
+		return EventReasonMultihubOperationTakenOver
 	default:
 		return EventReasonMultihubError
 	}
@@ -402,6 +405,22 @@ func (ctrl *ApplicationController) multihubClaimOrphan(ctx context.Context, app 
 // multihubTakenOver reports whether app's in-progress operation was taken
 // over by another hub (C3): the mirror on the Lease is the same operation
 // (same startedAt), recorded by another hub. It returns that hub's state.
-func (ctrl *ApplicationController) multihubTakenOver(ctx context.Context, app *appv1.Application) (*appv1.OperationState, bool) {
-	return nil, false
+func (ctrl *ApplicationController) multihubTakenOver(ctx context.Context, app *appv1.Application) (*appv1.OperationState, string, bool) {
+	ours := app.Status.OperationState
+	if !ctrl.multihub.Enabled() || ours == nil {
+		return nil, "", false
+	}
+	server, key, err := ctrl.multihubTarget(ctx, app)
+	if err != nil {
+		return nil, "", false
+	}
+	m, ok, err := ctrl.multihub.CurrentOperation(ctx, server, key)
+	if err != nil || !ok || m.Hub == ctrl.multihub.HubID() {
+		return nil, "", false
+	}
+	var theirs appv1.OperationState
+	if err := json.Unmarshal(m.State, &theirs); err != nil || !theirs.StartedAt.Equal(&ours.StartedAt) {
+		return nil, "", false
+	}
+	return &theirs, m.Hub, true
 }

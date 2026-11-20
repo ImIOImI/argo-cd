@@ -1689,6 +1689,25 @@ func (ctrl *ApplicationController) processRequestedAppOperation(app *appv1.Appli
 
 	// multihub: hold the operation lease for every pass of a real (non-dry-run)
 	// operation. Renewing here keeps it alive for the operation's duration.
+	// multihub: if another hub took this operation over while we were away
+	// (C3), show its state instead of resuming (and so repeating) it.
+	if ctrl.multihub.Enabled() && isOperationInProgress(app) {
+		if theirs, hub, ok := ctrl.multihubTakenOver(ctx, app); ok {
+			state = theirs
+			ctrl.setOperationState(ctx, app, state)
+			d := multihub.Decision{Event: multihub.EventFollowing, Holder: hub, Reason: "operation taken over by " + hub}
+			ctrl.multihubReport(ctx, app, multihub.PathOperation, d, fmt.Sprintf(
+				"multihub: this operation was taken over by %s; showing its state (%s: %s)", hub, state.Phase, state.Message))
+			if state.Phase.Completed() {
+				ctrl.requestAppRefresh(app.QualifiedName(), CompareWithLatest.Pointer(), nil)
+			} else {
+				requeueAfter = multihubOperationWait
+				requeuedForRetry = true
+			}
+			return
+		}
+	}
+
 	// multihubGen is the lease generation this pass runs under (0 = not coordinated).
 	var multihubGen int32
 	if ctrl.multihub.Enabled() && (app.Operation.Sync == nil || !app.Operation.Sync.DryRun) {
