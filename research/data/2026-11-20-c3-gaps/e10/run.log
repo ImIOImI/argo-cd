@@ -1,0 +1,68 @@
+E10-start=2026-11-20T14:43:22
+rollout 1, ready after 120s
+pushed generation 19 at 08:43:23
+hard refresh requested on hub-a at 14:43:24Z
+lease held by hub-a at 14:43:25Z
+hub-a: Running waiting for healthy state of apps/Deployment/lab-pause at 14:43:45Z
+hub-a controller stopped at 14:43:50Z
+hub-b Succeeded startedAt=2026-11-20T14:38:07Z finishedAt=2026-11-20T14:40:30Z by=lab-manual-sync rev=10a35ee info=multihub=taken over from hub-a op-pending=False | successfully synced (all tasks run)
+lease holder=hub-a gen=34 renew=2026-11-20T14:43:44.812034Z
+mirror hub=hub-a gen=34 running=True phase=Running startedAt=2026-11-20T14:43:25Z | waiting for healthy state of apps/Deployment/lab-pause
+hook jobs:
+lab-presync-22fcada-presync-1795176731   2026-11-20T12:12:11Z   1
+lab-presync-f4c8cca-presync-1795176986   2026-11-20T12:16:26Z   1
+lab-presync-217858e-presync-1795177262   2026-11-20T12:21:02Z   1
+lab-presync-33f5ec7-presync-1795179174   2026-11-20T12:54:31Z   1
+lab-presync-fa45dd9-presync-1795179987   2026-11-20T13:06:27Z   1
+lab-presync-5332ef8-presync-1795180490   2026-11-20T13:14:51Z   1
+lab-presync-5332ef8-presync-1795180553   2026-11-20T13:15:53Z   1
+lab-presync-e52319e-presync-1795184299   2026-11-20T14:18:20Z   1
+lab-presync-10a35ee-presync-1795185487   2026-11-20T14:38:08Z   1
+lab-presync-9c2ad13-presync-1795185730   2026-11-20T14:42:11Z   1
+lab-presync-bd5e726-presync-1795185805   2026-11-20T14:43:25Z   1
+lab-pause-5d96f994c4   1     1     1     87s    pause   busybox:1.36                 app=l
+lab-pause-684cd98bdb   0     0     0     6d1h   pause   registry.k8s.io/pause:3.10   app=l
+lab-pause-c88d77bd7    1     1     0     9s     pause   busybox:1.36                 app=l
+spoke generation=18
+--- 14:43:58
+hub-b Succeeded startedAt=2026-11-20T14:38:07Z finishedAt=2026-11-20T14:40:30Z by=lab-manual-sync rev=10a35ee info=multihub=taken over from hub-a op-pending=False | successfully synced (all tasks run)
+lease holder=hub-a gen=34 renew=2026-11-20T14:43:44.812034Z
+mirror hub=hub-a gen=34 running=True phase=Running startedAt=2026-11-20T14:43:25Z | waiting for healthy state of apps/Deployment/lab-pause
+lab-presync-bd5e726-presync-1795185805   2026-11-20T14:43:25Z   1
+rs lab-pause-5d96f994c4 1 1 1
+rs lab-pause-c88d77bd7 1 1 0
+spoke generation=18
+--- 14:44:52
+hub-b Running startedAt=2026-11-20T14:43:25Z finishedAt=None by=auto rev=bd5e726 info=multihub=taken over from hub-a op-pending=True | waiting for healthy state of apps/Deployment/lab-pause
+lease holder=hub-b gen=35 renew=2026-11-20T14:44:48.321626Z
+mirror hub=hub-b gen=35 running=True phase=Running startedAt=2026-11-20T14:43:25Z | waiting for healthy state of apps/Deployment/lab-pause
+lab-presync-bd5e726-presync-1795185805   2026-11-20T14:43:25Z   1
+rs lab-pause-5d96f994c4 1 1 1
+rs lab-pause-c88d77bd7 1 1 0
+spoke generation=18
+--- 14:45:25
+hub-b Running startedAt=2026-11-20T14:43:25Z finishedAt=None by=auto rev=bd5e726 info=multihub=taken over from hub-a op-pending=True | waiting for healthy state of apps/Deployment/lab-pause
+lease holder=hub-b gen=35 renew=2026-11-20T14:45:21.662899Z
+mirror hub=hub-b gen=35 running=True phase=Running startedAt=2026-11-20T14:43:25Z | waiting for healthy state of apps/Deployment/lab-pause
+lab-presync-bd5e726-presync-1795185805   2026-11-20T14:43:25Z   1
+rs lab-pause-5d96f994c4 1 1 1
+rs lab-pause-c88d77bd7 1 1 0
+spoke generation=18
+--- 14:45:49
+hub-b Succeeded startedAt=2026-11-20T14:43:25Z finishedAt=2026-11-20T14:45:45Z by=auto rev=bd5e726 info=multihub=taken over from hub-a op-pending=False | successfully synced (all tasks run)
+lease holder=- gen=35 renew=2026-11-20T14:45:44.894168Z
+mirror hub=hub-b gen=35 running=False phase=Succeeded startedAt=2026-11-20T14:43:25Z | successfully synced (all tasks run)
+lab-presync-bd5e726-presync-1795185805   2026-11-20T14:43:25Z   1
+rs lab-pause-5d96f994c4 0 0 0
+rs lab-pause-c88d77bd7 1 1 1
+spoke generation=19
+== hub-a
+== hub-b
+14:43:25 info  adopted   pin       -      -   multihub: using pinned revision bd5e72618be3e9634929bc481920aaca38e33da6 (pinned by hub-a) instead of this hub's 9c2ad13743610794df41b94f8ef0db16f93d4035
+14:44:48 warning takeover  takeover  hub-a  35  multihub: took over the running operation from hub-a (its lease expired); resuming it from "waiting for healthy state of apps/Deployment/lab-pause", started 2026-11-20T14:43:25Z (generation 35)
+14:45:45 info  released  operation hub-b  -   multihub: released operation lease
+=== E10 return
+hub-a controller running at 14:46:34Z
+hub-a Succeeded startedAt=2026-11-20T14:43:25Z finishedAt=2026-11-20T14:45:45Z by=auto rev=bd5e726 info=multihub=taken over from hub-a op-pending=False | successfully synced (all tasks run)
+hub-b Succeeded startedAt=2026-11-20T14:43:25Z finishedAt=2026-11-20T14:45:45Z by=auto rev=bd5e726 info=multihub=taken over from hub-a op-pending=False | successfully synced (all tasks run)
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"multihub: this operation was taken over by hub-b; showing its state (Succeeded: successfully synced (all tasks run))","multihub.

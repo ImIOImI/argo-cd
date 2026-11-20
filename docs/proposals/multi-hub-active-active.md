@@ -213,7 +213,10 @@ sends.
    instead of twice, and a returning hub takes the result instead of
    resuming its stale operation. The mirror lives on the Lease
    (annotation), not `status.operation`. See
-   [research/2026-11-20-c3-takeover.md](../../research/2026-11-20-c3-takeover.md).*
+   [research/2026-11-20-c3-takeover.md](../../research/2026-11-20-c3-takeover.md)
+   and the follow-up
+   [research/2026-11-20-c3-gaps.md](../../research/2026-11-20-c3-gaps.md)
+   (manual syncs, mid-rollout death, takeover in 3–5s after expiry).*
 5. **C4, C5, C6.**
 
 Keep all coordination logic in a new `controller/multihub` package behind an

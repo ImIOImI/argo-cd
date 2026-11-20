@@ -1,0 +1,7 @@
+NAME                                   DESIRED   CURRENT   READY   AGE     CONTAINERS   IMAGES                       SELECTOR
+replicaset.apps/lab-pause-5d96f994c4   0         0         0       4m36s   pause        busybox:1.36                 app=lab-pause,pod-template-hash=5d96f994c4
+replicaset.apps/lab-pause-684cd98bdb   0         0         0       6d1h    pause        registry.k8s.io/pause:3.10   app=lab-pause,pod-template-hash=684cd98bdb
+replicaset.apps/lab-pause-c88d77bd7    1         1         1       3m18s   pause        busybox:1.36                 app=lab-pause,pod-template-hash=c88d77bd7
+
+NAME                        READY   UP-TO-DATE   AVAILABLE   AGE    CONTAINERS   IMAGES         SELECTOR
+deployment.apps/lab-pause   1/1     1            1           6d1h   pause        busybox:1.36   app=lab-pause

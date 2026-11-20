@@ -1,0 +1,51 @@
+E9b-start=2026-11-20T14:38:07
+application.argoproj.io/lab-app patched
+manual sync requested on hub-a at 14:38:07Z
+lease held by hub-a at 14:38:07Z
+hook running: lab-presync-10a35ee-presync-1795185487 at 14:38:09Z
+hub-a controller stopped at 14:38:14Z
+--- 14:38:16
+hub-b Succeeded startedAt=2026-11-20T14:18:19Z finishedAt=2026-11-20T14:20:42Z by=lab-manual-sync rev=e52319e info=multihub=taken over from hub-a op-pending=False | successfully synced (all tasks run)
+lease holder=hub-a gen=31 renew=2026-11-20T14:38:10.310015Z
+mirror hub=hub-a gen=31 running=True phase=Running startedAt=2026-11-20T14:38:07Z | waiting for completion of hook batch/Job/lab-presync-10a35ee-presync-1795185487
+lab-presync-10a35ee-presync-1795185487   2026-11-20T14:38:08Z   <none>
+== hub-a
+== hub-b
+--- 14:38:47
+hub-b Succeeded startedAt=2026-11-20T14:18:19Z finishedAt=2026-11-20T14:20:42Z by=lab-manual-sync rev=e52319e info=multihub=taken over from hub-a op-pending=False | successfully synced (all tasks run)
+lease holder=hub-a gen=31 renew=2026-11-20T14:38:10.310015Z
+mirror hub=hub-a gen=31 running=True phase=Running startedAt=2026-11-20T14:38:07Z | waiting for completion of hook batch/Job/lab-presync-10a35ee-presync-1795185487
+lab-presync-10a35ee-presync-1795185487   2026-11-20T14:38:08Z   <none>
+--- 14:39:17
+hub-b Running startedAt=2026-11-20T14:38:07Z finishedAt=None by=lab-manual-sync rev=10a35ee info=multihub=taken over from hub-a op-pending=True | waiting for completion of hook batch/Job/lab-presync-10a35ee-presync-1795185487
+lease holder=hub-b gen=32 renew=2026-11-20T14:39:15.594715Z
+mirror hub=hub-b gen=32 running=True phase=Running startedAt=2026-11-20T14:38:07Z | waiting for completion of hook batch/Job/lab-presync-10a35ee-presync-1795185487
+lab-presync-10a35ee-presync-1795185487   2026-11-20T14:38:08Z   <none>
+--- 14:39:51
+hub-b Running startedAt=2026-11-20T14:38:07Z finishedAt=None by=lab-manual-sync rev=10a35ee info=multihub=taken over from hub-a op-pending=True | waiting for completion of hook batch/Job/lab-presync-10a35ee-presync-1795185487
+lease holder=hub-b gen=32 renew=2026-11-20T14:39:48.936922Z
+mirror hub=hub-b gen=32 running=True phase=Running startedAt=2026-11-20T14:38:07Z | waiting for completion of hook batch/Job/lab-presync-10a35ee-presync-1795185487
+lab-presync-10a35ee-presync-1795185487   2026-11-20T14:38:08Z   <none>
+--- 14:40:23
+hub-b Running startedAt=2026-11-20T14:38:07Z finishedAt=None by=lab-manual-sync rev=10a35ee info=multihub=taken over from hub-a op-pending=True | waiting for completion of hook batch/Job/lab-presync-10a35ee-presync-1795185487
+lease holder=hub-b gen=32 renew=2026-11-20T14:40:22.333129Z
+mirror hub=hub-b gen=32 running=True phase=Running startedAt=2026-11-20T14:38:07Z | waiting for completion of hook batch/Job/lab-presync-10a35ee-presync-1795185487
+lab-presync-10a35ee-presync-1795185487   2026-11-20T14:38:08Z   <none>
+--- 14:40:27
+hub-b Running startedAt=2026-11-20T14:38:07Z finishedAt=None by=lab-manual-sync rev=10a35ee info=multihub=taken over from hub-a op-pending=True | waiting for completion of hook batch/Job/lab-presync-10a35ee-presync-1795185487
+lease holder=hub-b gen=32 renew=2026-11-20T14:40:22.333129Z
+mirror hub=hub-b gen=32 running=True phase=Running startedAt=2026-11-20T14:38:07Z | waiting for completion of hook batch/Job/lab-presync-10a35ee-presync-1795185487
+lab-presync-10a35ee-presync-1795185487   2026-11-20T14:38:08Z   1
+--- 14:40:31
+hub-b Succeeded startedAt=2026-11-20T14:38:07Z finishedAt=2026-11-20T14:40:30Z by=lab-manual-sync rev=10a35ee info=multihub=taken over from hub-a op-pending=False | successfully synced (all tasks run)
+lease holder=- gen=32 renew=2026-11-20T14:40:30.137135Z
+mirror hub=hub-b gen=32 running=False phase=Succeeded startedAt=2026-11-20T14:38:07Z | successfully synced (all tasks run)
+lab-presync-10a35ee-presync-1795185487   2026-11-20T14:38:08Z   1
+== hub-a
+== hub-b
+14:39:15 warning takeover  takeover  hub-a  32  multihub: took over the running operation from hub-a (its lease expired); resuming it from "waiting for completion of hook batch/Job/lab-presync-10a35ee-presync-1795185487", started 2026-11-20T14:38:07Z (generation 32)
+14:40:30 info  released  operation hub-b  -   multihub: released operation lease
+=== E9b return
+hub-a controller running at 14:41:24Z
+hub-a Succeeded startedAt=2026-11-20T14:38:07Z finishedAt=2026-11-20T14:40:30Z by=lab-manual-sync rev=10a35ee info=multihub=taken over from hub-a op-pending=False | successfully synced (all tasks run)
+hub-b Succeeded startedAt=2026-11-20T14:38:07Z finishedAt=2026-11-20T14:40:30Z by=lab-manual-sync rev=10a35ee info=multihub=taken over from hub-a op-pending=False | successfully synced (all tasks run)

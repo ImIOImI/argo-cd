@@ -1,0 +1,17 @@
+# hub-b refreshes of lab-app during the first E9 run (image eb193edb5), printed to the
+# terminal at ~14:21Z by:
+#   kubectl --context kind-hub-b -n argocd logs statefulset/argocd-application-controller --since=15m \
+#     | grep lab-app | grep -E '"time":"2026-11-20T14:1[89]' \
+#     | grep -E 'Refreshing|Reconciliation completed|refresh|comparison' | <python: time, msg[:110], comparison-level, time_ms>
+# The pod was restarted by the 14:28Z redeploy, so the raw log is gone.
+14:18:20 Requesting app refresh caused by object update 1
+14:18:20 Refreshing app status (controller refresh requested), level (1)
+14:18:20 Reconciliation completed 1 50
+14:18:20 Refreshing app status (controller refresh requested), level (0)
+14:18:20 Reconciliation completed 0 2
+14:18:21 Refreshing app status (controller refresh requested), level (0)
+14:18:21 Reconciliation completed 0 3
+14:19:55 Refreshing app status (comparison expired, requesting refresh. reconciledAt: 2026-11-20 14:16:39 +0000 UTC, ex
+14:19:56 Reconciliation completed 2 416
+14:19:56 Finished processing requested app operation  83
+14:19:56 Finished processing requested app operation  52

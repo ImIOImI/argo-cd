@@ -1,0 +1,30 @@
+apiVersion: v1
+items:
+- apiVersion: coordination.k8s.io/v1
+  kind: Lease
+  metadata:
+    annotations:
+      multihub.argoproj.io/application: multi-hub-lab/lab-app
+      multihub.argoproj.io/operation: H4sIAAAAAAAA/8SUT2/aQBDF7/0U1pxaacEYYwIr9dCmF6q2iUh6SZTD2B7sFfbuav+gIOTvXq0dQJUS0fbSC9KO3s6832M9B6h9Djz8jnJgUJEkg04oCTzNGBgvpZAV8A02lrp3B1D6JDiA3csC+AEM7YTta5CXGV1N58kip5SW83S2nC7zYrZIltMJYoHpgtK0xDkw0MZLAu6MJwZWeVPQ0Eyrn+tvwZVz2vI4roSrfT4uVBuv2tXNql3FaCo1KspxJVzohK4Oeiy2cesbJ0YBqME8Rq2BgUNTkVufXVottnSWQsd6lhsd0C3wR7g2hI5+YEtWY0Efg0t46hgIKZxAR+XnfXCL3qk2HAeQXrBRwB8PILEl4NBPCTEz2GHjQ8nhlmSkdmSijVFtFNwidE8MDDnT921EKxzwrOsY6BptuHbni4KopBIYtGQtVqFqQ9XajW+afRQoqIzeY9NEDu3WRsbLDzDgrcn6xoXuhoa8A+oBKqO8Bg45uqIGBjsyLzntEmCwFbIEDl9VQJDHRIBDg8fKcBhpQ2HO6OURnM7J1TJLFtlikgUnDp23Aaf3+hvLmrCoqYzoWVPhqIykb3MykdpE9ggfaVVaYFArtb3f6xDBraG78BSH4u0rcQUbx/pZLVqs+gwg93afq2eejNN5+JvPoaDW9s1MvpBu1L4l6S5Gg97SBfry1G0cpsane1Gh5EZU3lD5h4x/Afgm3HU/9DvqS2yDuwtwg6hFHZ+vvM21flk8r1ANn8m/LJz/vGPCknFoHJWfHHCYTqbzUZKMppP7ZMZnKZ9mD8BgI6Sw9euajM+yB+h+DQDSWenetgUAAA==
+      multihub.argoproj.io/pinned-at: "2026-11-20T14:43:25.456168733Z"
+      multihub.argoproj.io/pinned-by: hub-a
+      multihub.argoproj.io/pinned-commit-time: "2026-11-20T14:43:22Z"
+      multihub.argoproj.io/pinned-revision: bd5e72618be3e9634929bc481920aaca38e33da6
+      multihub.argoproj.io/released-at: "2026-11-20T14:45:45.085348601Z"
+      multihub.argoproj.io/released-by: hub-b
+    creationTimestamp: "2026-11-14T13:08:02Z"
+    labels:
+      app.kubernetes.io/managed-by: argocd-multihub
+    name: multi-hub-lab.lab-app
+    namespace: argocd-coordination
+    resourceVersion: "654169"
+    uid: c30fa3ab-fada-4626-ac01-ace3189d3deb
+  spec:
+    acquireTime: "2026-11-20T14:44:48.185266Z"
+    holderIdentity: ""
+    leaseDurationSeconds: 60
+    leaseTransitions: 35
+    renewTime: "2026-11-20T14:45:44.894168Z"
+kind: List
+metadata:
+  resourceVersion: ""

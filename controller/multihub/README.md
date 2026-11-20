@@ -20,7 +20,9 @@ Implemented so far:
   operation once the lease expires and resumes **the same operation** (same
   `startedAt`, initiator and per-resource progress), so a running hook is
   adopted, not run again. A hub that comes back with a stale copy of that
-  operation follows the other hub's state instead of resuming it.
+  operation follows the other hub's state instead of resuming it. A hub that
+  sees another hub's live lease schedules a refresh for when it expires, so
+  the takeover doesn't wait for a periodic refresh.
 
 ## Configuration
 

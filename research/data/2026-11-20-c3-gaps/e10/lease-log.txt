@@ -1,0 +1,6 @@
+== hub-a
+14:46:24 info  following operation hub-b  -   multihub: this operation was taken over by hub-b; showing its state (Succeeded: successfully synced (all tasks run))
+== hub-b
+14:43:25 info  adopted   pin       -      -   multihub: using pinned revision bd5e72618be3e9634929bc481920aaca38e33da6 (pinned by hub-a) instead of this hub's 9c2ad13743610794df41b94f8ef0db16f93d4035
+14:44:48 warning takeover  takeover  hub-a  35  multihub: took over the running operation from hub-a (its lease expired); resuming it from "waiting for healthy state of apps/Deployment/lab-pause", started 2026-11-20T14:43:25Z (generation 35)
+14:45:45 info  released  operation hub-b  -   multihub: released operation lease

@@ -1,0 +1,47 @@
+E9-start=2026-11-20T14:18:19
+application.argoproj.io/lab-app patched
+manual sync requested on hub-a at 14:18:19Z
+lease held by hub-a at 14:18:20Z
+hook running: lab-presync-e52319e-presync-1795184299 at 14:18:21Z
+hub-a controller stopped at 14:18:26Z
+--- 14:18:27
+hub-b Succeeded startedAt=2026-11-20T13:15:53Z finishedAt=2026-11-20T13:18:15Z by=auto rev=5332ef8  op-pending=False | successfully synced (all tasks run)
+lease holder=hub-a gen=29 renew=2026-11-20T14:18:22.423756Z
+mirror hub=hub-a gen=29 running=True phase=Running startedAt=2026-11-20T14:18:19Z | waiting for completion of hook batch/Job/lab-presync-e52319e-presync-1795184299
+hook jobs:
+lab-presync-e52319e-presync-1795184299   2026-11-20T14:18:20Z   <none>
+--- 14:19:58
+hub-b Running startedAt=2026-11-20T14:18:19Z finishedAt=None by=lab-manual-sync rev=e52319e info=multihub=taken over from hub-a op-pending=True | waiting for completion of hook batch/Job/lab-presync-e52319e-presync-1795184299
+lease holder=hub-b gen=30 renew=2026-11-20T14:19:56.287097Z
+mirror hub=hub-b gen=30 running=True phase=Running startedAt=2026-11-20T14:18:19Z | waiting for completion of hook batch/Job/lab-presync-e52319e-presync-1795184299
+hook jobs:
+lab-presync-e52319e-presync-1795184299   2026-11-20T14:18:20Z   <none>
+--- 14:20:30
+hub-b Running startedAt=2026-11-20T14:18:19Z finishedAt=None by=lab-manual-sync rev=e52319e info=multihub=taken over from hub-a op-pending=True | waiting for completion of hook batch/Job/lab-presync-e52319e-presync-1795184299
+lease holder=hub-b gen=30 renew=2026-11-20T14:20:29.620063Z
+mirror hub=hub-b gen=30 running=True phase=Running startedAt=2026-11-20T14:18:19Z | waiting for completion of hook batch/Job/lab-presync-e52319e-presync-1795184299
+hook jobs:
+lab-presync-e52319e-presync-1795184299   2026-11-20T14:18:20Z   <none>
+--- 14:20:42
+hub-b Running startedAt=2026-11-20T14:18:19Z finishedAt=None by=lab-manual-sync rev=e52319e info=multihub=taken over from hub-a op-pending=True | waiting for completion of hook batch/Job/lab-presync-e52319e-presync-1795184299
+lease holder=hub-b gen=30 renew=2026-11-20T14:20:41.940225Z
+mirror hub=hub-b gen=30 running=True phase=Running startedAt=2026-11-20T14:18:19Z | waiting for completion of hook batch/Job/lab-presync-e52319e-presync-1795184299
+hook jobs:
+lab-presync-e52319e-presync-1795184299   2026-11-20T14:18:20Z   1
+--- 14:20:51
+hub-b Succeeded startedAt=2026-11-20T14:18:19Z finishedAt=2026-11-20T14:20:42Z by=lab-manual-sync rev=e52319e info=multihub=taken over from hub-a op-pending=False | successfully synced (all tasks run)
+lease holder=- gen=30 renew=2026-11-20T14:20:41.940225Z
+mirror hub=hub-b gen=30 running=False phase=Succeeded startedAt=2026-11-20T14:18:19Z | successfully synced (all tasks run)
+hook jobs:
+lab-presync-e52319e-presync-1795184299   2026-11-20T14:18:20Z   1
+== hub-a
+== hub-b
+14:19:56 warning takeover  takeover  hub-a  30  multihub: took over the running operation from hub-a (its lease expired); resuming it from "waiting for completion of hook batch/Job/lab-presync-e52319e-presync-1795184299", started 2026-11-20T14:18:19Z (generation 30)
+14:20:42 info  released  operation hub-b  -   multihub: released operation lease
+=== E9 return (image 10a35eef4)
+hub-a controller running at 14:37:02Z
+hub-a Succeeded startedAt=2026-11-20T14:18:19Z finishedAt=2026-11-20T14:20:42Z by=lab-manual-sync rev=e52319e info=multihub=taken over from hub-a op-pending=False | successfully synced (all tasks run)
+hub-b Succeeded startedAt=2026-11-20T14:18:19Z finishedAt=2026-11-20T14:20:42Z by=lab-manual-sync rev=e52319e info=multihub=taken over from hub-a op-pending=False | successfully synced (all tasks run)
+Exception ignored on flushing sys.stdout:
+BrokenPipeError: [Errno 32] Broken pipe
+{"app-namespace":"argocd","application":"lab-app","level":"info","msg":"multihub: this operation was taken over by hub-b; showing its state (Succeeded: successfully synced (all tasks run))","multihub.event":"following","
