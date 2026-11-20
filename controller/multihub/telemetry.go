@@ -130,7 +130,7 @@ func (r *Reporter) Plan(app, path string, ev Event, holder, reason string) Repor
 		return Report{LogLevel: level(r.cfg.LogLifecycle)}
 	case EventRenewed:
 		return Report{LogLevel: level(r.cfg.LogRenewals)}
-	case EventHeld, EventSettling, EventFollowing:
+	case EventHeld, EventSettling, EventFollowing, EventOverridden:
 		changed := r.changed(k, ev, holder, "")
 		lvl := log.DebugLevel
 		switch r.cfg.LogDenials {

@@ -550,3 +550,31 @@ func (ctrl *ApplicationController) multihubReportOverride(ctx context.Context, a
 		ctrl.logAppEvent(ctx, app, argo.EventInfo{Type: corev1.EventTypeNormal, Reason: reason}, message)
 	}
 }
+
+// multihubOverridden reports whether an override (C5) means this hub's
+// auto-sync must stand down, and says so (info when it changes). If the
+// override can't be read, auto-sync also stands down: the same destination
+// would refuse the operation lease anyway.
+func (ctrl *ApplicationController) multihubOverridden(ctx context.Context, app *appv1.Application) bool {
+	if !ctrl.multihub.Enabled() {
+		return false
+	}
+	server, key, err := ctrl.multihubTarget(ctx, app)
+	var o multihub.Override
+	var ok bool
+	if err == nil {
+		o, ok, err = ctrl.multihub.CurrentOverride(ctx, server, key)
+	}
+	if err != nil {
+		d := multihub.Decision{Event: multihub.EventError, Reason: err.Error()}
+		ctrl.multihubReport(ctx, app, multihub.PathAutoSync, d, "Skipping auto-sync: multihub override unavailable: "+err.Error())
+		return true
+	}
+	if !ok {
+		return false
+	}
+	ctrl.multihubReportOverride(ctx, app, multihub.EventOverridden, o, fmt.Sprintf(
+		"Skipping auto-sync: override to %s in place (%s, recorded by %s); sync to %s on any hub to resume automated syncs",
+		o.Revision, o.Reason, o.By, orHEAD(app.Spec.GetSource().TargetRevision)))
+	return true
+}

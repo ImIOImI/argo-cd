@@ -3193,6 +3193,13 @@ func (ctrl *ApplicationController) autoSync(ctx context.Context, app *appv1.Appl
 		}
 	}
 
+	// multihub (C5): a user's sync to a specific revision (e.g. a rollback) on
+	// any hub pauses every hub's automated syncs until a sync to HEAD.
+	if ctrl.multihubOverridden(ctx, app) {
+		ts.AddCheckpoint("multihub_override_ms")
+		return nil, 0
+	}
+
 	// multihub: only one hub may run an operation for this app at a time.
 	if ctrl.multihub.Enabled() {
 		// Logging, Events and metrics for every decision happen in multihubAcquire.
