@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -960,4 +961,46 @@ func TestMultihubRollbackFailsIfTheOverrideCantBeRecorded(t *testing.T) {
 	require.NotNil(t, got.Status.OperationState)
 	assert.Equal(t, synccommon.OperationError, got.Status.OperationState.Phase)
 	assert.Contains(t, got.Status.OperationState.Message, "override")
+}
+
+// C5, E5 unit-sized: hub-b rolled back (override recorded). This hub's
+// auto-sync, with the app OutOfSync against HEAD, must not revert it.
+func TestMultihubAutoSyncStandsDownWhileAnOverrideExists(t *testing.T) {
+	for _, overridden := range []bool{true, false} {
+		t.Run(fmt.Sprintf("override=%v", overridden), func(t *testing.T) {
+			app := newFakeApp() // automated sync policy
+			data := &fakeData{
+				apps: []runtime.Object{app, &defaultProj},
+				manifestResponses: []*apiclient.ManifestResponse{{
+					Manifests: []string{orphanTestConfigMap}, Namespace: test.FakeDestNamespace, Server: test.FakeClusterURL, Revision: "abc123",
+				}},
+				managedLiveObjs: map[kube.ResourceKey]*unstructured.Unstructured{},
+			}
+			f := newMultihubPinFixture(t, data, app)
+			f.lookup["abc123"] = pinT1
+			if overridden {
+				f.hubAOverride(t, "e264214")
+			}
+			hook := captureLogs(t)
+
+			key, err := cache.MetaNamespaceKeyFunc(app)
+			require.NoError(t, err)
+			f.ctrl.requestAppRefresh(app.QualifiedName(), CompareWithLatest.Pointer(), nil)
+			f.ctrl.appRefreshQueue.Add(key)
+			f.ctrl.processAppRefreshQueueItem()
+
+			got, err := f.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(app.Namespace).Get(t.Context(), app.Name, metav1.GetOptions{})
+			require.NoError(t, err)
+			assert.Equal(t, v1alpha1.SyncStatusCodeOutOfSync, got.Status.Sync.Status, "still compared against HEAD: honest status")
+			if !overridden {
+				assert.NotNil(t, got.Operation, "control: auto-sync runs")
+				return
+			}
+			assert.Nil(t, got.Operation, "auto-sync stood down")
+			entries := multihubEntries(hook, string(multihub.EventOverridden))
+			require.Len(t, entries, 1)
+			assert.Equal(t, log.InfoLevel, entries[0].Level)
+			assert.Equal(t, "e264214", entries[0].Data["multihub.override_revision"])
+		})
+	}
 }

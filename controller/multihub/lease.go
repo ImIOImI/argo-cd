@@ -152,6 +152,7 @@ const (
 	EventFollowing       Event = "following"        // this hub's operation was taken over by another hub; showing its state (C3)
 	EventOverrideSet     Event = "override_set"     // a user's sync to a specific revision recorded the override (C5)
 	EventOverrideCleared Event = "override_cleared" // a user's sync to the targetRevision cleared it (C5)
+	EventOverridden      Event = "overridden"       // auto-sync skipped: an override is in place (C5)
 	EventDisabled        Event = "disabled"         // coordination is off
 )
 
