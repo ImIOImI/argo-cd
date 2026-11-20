@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -21,6 +22,7 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 
+	synccommon "github.com/argoproj/argo-cd/gitops-engine/v3/pkg/sync/common"
 	"github.com/argoproj/argo-cd/gitops-engine/v3/pkg/utils/kube"
 
 	"github.com/argoproj/argo-cd/v3/controller/multihub"
@@ -405,4 +407,91 @@ func TestMultihubPinRevisionReportsLookupErrorOnce(t *testing.T) {
 	assert.Equal(t, log.WarnLevel, entries[0].Level, "first failure warns")
 	assert.Equal(t, log.DebugLevel, entries[1].Level, "a repeat of the same failure is collapsed")
 	assert.Contains(t, entries[0].Data["multihub.reason"], "unknown999")
+}
+
+// operationFixture: hub-b's controller with a sync operation requested on
+// app, sharing a fake spoke with a hub-a coordinator.
+func operationFixture(t *testing.T) (*multihubPinFixture, *v1alpha1.Application) {
+	t.Helper()
+	app := pinTestApp()
+	app.Operation = &v1alpha1.Operation{Sync: &v1alpha1.SyncOperation{Revision: "abc123"}}
+	f := newMultihubPinFixture(t, &fakeData{
+		apps:              []runtime.Object{app, &defaultProj},
+		manifestResponses: []*apiclient.ManifestResponse{{Manifests: []string{}}},
+	}, app)
+	return f, app
+}
+
+func (f *multihubPinFixture) mirror(t *testing.T) (multihub.OperationMirror, *v1alpha1.OperationState) {
+	t.Helper()
+	server, key := f.target(t)
+	m, ok, err := f.hubA.CurrentOperation(t.Context(), server, key)
+	require.NoError(t, err)
+	require.True(t, ok, "operation mirrored")
+	var state v1alpha1.OperationState
+	require.NoError(t, json.Unmarshal(m.State, &state))
+	return m, &state
+}
+
+func TestMultihubOperationMirrorsFinalStateBeforeReleasing(t *testing.T) {
+	f, app := operationFixture(t)
+
+	f.ctrl.processRequestedAppOperation(app)
+
+	patched, err := f.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(app.Namespace).Get(t.Context(), app.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	require.Equal(t, synccommon.OperationSucceeded, patched.Status.OperationState.Phase)
+
+	m, state := f.mirror(t)
+	assert.Equal(t, "hub-b", m.Hub)
+	assert.False(t, m.Running, "completed")
+	assert.Equal(t, synccommon.OperationSucceeded, state.Phase)
+	assert.True(t, patched.Status.OperationState.StartedAt.Equal(&state.StartedAt), "startedAt mirrored: it names the hooks")
+	assert.Equal(t, "abc123", state.Operation.Sync.Revision)
+
+	server, key := f.target(t)
+	d, err := f.hubA.AcquireForOperation(t.Context(), server, key)
+	require.NoError(t, err)
+	assert.Equal(t, multihub.EventAcquired, d.Event, "lease released after the final mirror")
+}
+
+func TestMultihubMirrorRecordsARunningOperation(t *testing.T) {
+	f, app := operationFixture(t)
+	server, key := f.target(t)
+	d, err := f.ctrl.multihub.AcquireForOperation(t.Context(), server, key)
+	require.NoError(t, err)
+	state := &v1alpha1.OperationState{
+		Operation: *app.Operation,
+		Phase:     synccommon.OperationRunning,
+		Message:   "waiting for completion of hook batch/Job/presync",
+		// Local: metav1.Time decodes from JSON in local time, to the second.
+		StartedAt: metav1.NewTime(time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC).Local()),
+		SyncResult: &v1alpha1.SyncOperationResult{
+			Revision:  "abc123",
+			Resources: v1alpha1.ResourceResults{{Kind: "Job", Name: "presync-abc123-presync-1795089600", HookType: "PreSync", HookPhase: synccommon.OperationRunning}},
+		},
+	}
+
+	f.ctrl.multihubMirror(t.Context(), app, d.Generation, state)
+
+	m, got := f.mirror(t)
+	assert.True(t, m.Running)
+	assert.Equal(t, d.Generation, m.Generation)
+	assert.Equal(t, state, got)
+}
+
+func TestMultihubMirrorFailureWarns(t *testing.T) {
+	f, app := operationFixture(t)
+	hook := captureLogs(t)
+	// hub-b doesn't hold the lease: fenced.
+	f.ctrl.multihubMirror(t.Context(), app, 7, &v1alpha1.OperationState{Phase: synccommon.OperationRunning})
+
+	var warned bool
+	for _, e := range hook.AllEntries() {
+		if e.Level == log.WarnLevel && e.Data["multihub.event"] == "mirror_error" {
+			warned = true
+			assert.Contains(t, e.Data["multihub.reason"], "not the operation lease holder")
+		}
+	}
+	assert.True(t, warned, "a failed mirror is a warning: takeover would restart this operation")
 }

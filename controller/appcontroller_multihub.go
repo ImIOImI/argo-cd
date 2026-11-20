@@ -322,3 +322,8 @@ func (ctrl *ApplicationController) multihubRepoCommitTime(repoClientset apiclien
 		return md.Date.Time, nil
 	}
 }
+
+// multihubMirror records app's operation state on its Lease after a pass
+// (C3), so another hub can take the operation over if this one dies.
+func (ctrl *ApplicationController) multihubMirror(ctx context.Context, app *appv1.Application, generation int32, state *appv1.OperationState) {
+}
