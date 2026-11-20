@@ -23,6 +23,11 @@ Implemented so far:
   operation follows the other hub's state instead of resuming it. A hub that
   sees another hub's live lease schedules a refresh for when it expires, so
   the takeover doesn't wait for a periodic refresh.
+- **C5, coordinated rollback:** a user's full sync to a revision other than
+  the app's `targetRevision` (Argo's Rollback is one) records an
+  **override** on the Lease before syncing. While it exists, every hub's
+  automated sync (self-heal included) stands down. A user sync to the
+  `targetRevision` on any hub clears it.
 
 ## Configuration
 
@@ -69,8 +74,8 @@ plus:
 | Field | Value |
 |---|---|
 | `multihub.hub` | this hub |
-| `multihub.path` | `auto-sync`, `operation` or `takeover` (claiming another hub's orphaned operation) |
-| `multihub.event` | `acquired`, `renewed`, `takeover`, `held`, `settling`, `released`, `lost`, `error`, `release_error`, `mirror_error`, `following` |
+| `multihub.path` | `auto-sync`, `operation`, `takeover` (claiming another hub's orphaned operation) or `override` (C5) |
+| `multihub.event` | `acquired`, `renewed`, `takeover`, `held`, `settling`, `released`, `lost`, `error`, `release_error`, `mirror_error`, `following`, `override_set`, `override_cleared`, `overridden` |
 | `multihub.holder` | hub holding the lease (or that just released it, for `settling`) |
 | `multihub.generation` | fencing token (`leaseTransitions`), when granted |
 | `multihub.reason` | free-text reason / error |
@@ -83,7 +88,8 @@ Messages keep upstream wording where one exists, e.g.
 |---|---|
 | `acquired`, `released` | info (`LOG_LIFECYCLE`) |
 | `renewed` | debug (info with `LOG_RENEWALS`) |
-| `held`, `settling`, `following` | per `LOG_DENIALS` |
+| `held`, `settling`, `following`, `overridden` | per `LOG_DENIALS` |
+| `override_set`, `override_cleared` | info |
 | `takeover`, `lost` | **warn** |
 | `error`, `release_error`, `mirror_error` | **warn** on change, debug for repeats (warn every time with `LOG_DENIALS=all`) |
 
@@ -110,6 +116,9 @@ Revision-pin decisions use the same fields with `multihub.path=pin`, plus
 | `MultihubLeaseError` | Warning | the lease could not be read or updated (first occurrence of each distinct error) |
 | `MultihubLeaseReleaseError` | Warning | the lease could not be released (it expires on its own) |
 | `MultihubOperationWaiting` | Normal | an operation (e.g. a manual sync) is waiting for another hub's lease (once per wait) |
+| `MultihubOverrideSet` | Normal | a user's sync to a specific revision on this hub recorded the override |
+| `MultihubOverrideCleared` | Normal | a user's sync to the targetRevision on this hub cleared it |
+| `MultihubAutoSyncPaused` | Normal | this hub's auto-sync stood down because of an override (once per change) |
 | `MultihubOperationTakenOver` | Normal | this hub's in-progress operation was taken over by another hub; this hub now shows that hub's state |
 
 A takeover by the claim path also raises `MultihubLeaseTakeover`, and the
@@ -123,7 +132,7 @@ Routine acquire/release has no Event. Upstream's `OperationStarted` /
 
 `argocd_multihub_lease_decisions_total{hub, path, event}`: a counter on the
 controller's existing `/metrics` endpoint. `path` is `auto-sync`,
-`operation`, `pin` or `takeover`. Useful queries:
+`operation`, `pin`, `takeover` or `override`. Useful queries:
 
 ```promql
 # takeovers, should be ~0 outside of hub failures
@@ -146,6 +155,9 @@ shows:
   the last release;
 - the revision pin (`multihub.argoproj.io/pinned-revision`,
   `pinned-commit-time`, `pinned-by`, `pinned-at`). That's current state only, not history;
+- the override (`multihub.argoproj.io/override-revision`, `override-by`,
+  `override-at`, `override-reason`), if a rollback is in force. Delete those
+  annotations to clear it by hand;
 - the mirrored operation (`multihub.argoproj.io/operation`):
   `base64(gzip(header JSON + "\n" + OperationState JSON))`, where the header
   is `{"hub","generation","running"}`. Capped at 200KiB. To decode it:

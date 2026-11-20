@@ -1,0 +1,6 @@
+TIME                   COUNT   TYPE     REASON                       MSG
+2026-11-20T14:37:20Z   1       Normal   MultihubOperationTakenOver   multihub: this operation was taken over by hub-b; showing its state (Succeeded: successfully synced (all tasks run))
+2026-11-20T14:41:11Z   1       Normal   MultihubOperationTakenOver   multihub: this operation was taken over by hub-b; showing its state (Succeeded: successfully synced (all tasks run))
+2026-11-20T14:46:24Z   1       Normal   MultihubOperationTakenOver   multihub: this operation was taken over by hub-b; showing its state (Succeeded: successfully synced (all tasks run))
+2026-11-20T15:08:46Z   1       Normal   MultihubAutoSyncPaused       Skipping auto-sync: override to 5332ef85212a2879660df6bb1779821013cdae8e in place (sync to 5332ef85212a2879660df6bb1779821013cdae8e by lab-rollback, recorded by hub-b); sync to spike/multi-hub on any hub to resume automated syncs
+2026-11-20T15:13:05Z   1       Normal   MultihubOverrideCleared      multihub: override to 5332ef85212a2879660df6bb1779821013cdae8e (sync to 5332ef85212a2879660df6bb1779821013cdae8e by lab-rollback, set by hub-b) cleared by a sync to spike/multi-hub by lab-manual-sync; automated syncs resume on every hub

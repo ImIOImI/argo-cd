@@ -1,0 +1,5 @@
+TIME                   COUNT   TYPE      REASON                  MSG
+2026-11-20T14:19:56Z   1       Warning   MultihubLeaseTakeover   multihub: took over the running operation from hub-a (its lease expired); resuming it from "waiting for completion of hook batch/Job/lab-presync-e52319e-presync-1795184299", started 2026-11-20T14:18:19Z (generation 30)
+2026-11-20T14:39:15Z   1       Warning   MultihubLeaseTakeover   multihub: took over the running operation from hub-a (its lease expired); resuming it from "waiting for completion of hook batch/Job/lab-presync-10a35ee-presync-1795185487", started 2026-11-20T14:38:07Z (generation 32)
+2026-11-20T14:44:48Z   1       Warning   MultihubLeaseTakeover   multihub: took over the running operation from hub-a (its lease expired); resuming it from "waiting for healthy state of apps/Deployment/lab-pause", started 2026-11-20T14:43:25Z (generation 35)
+2026-11-20T15:08:45Z   1       Normal    MultihubOverrideSet     multihub: override to 5332ef85212a2879660df6bb1779821013cdae8e recorded (sync to 5332ef85212a2879660df6bb1779821013cdae8e by lab-rollback); automated syncs are paused on every hub until a sync to spike/multi-hub

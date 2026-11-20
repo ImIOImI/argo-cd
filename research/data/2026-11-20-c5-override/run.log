@@ -1,0 +1,72 @@
+E5c5-start=2026-11-20T15:08:45
+application.argoproj.io/lab-app patched
+application.argoproj.io/lab-app patched
+rolled hub-b back to history id 9 at 15:08:45Z
+--- 15:08:46
+hub-a Synced op=Succeeded by=true rev=f531eae7c90e3e27f581d7ade25c7c99ddd7d2d5
+hub-b Synced op=Running by=lab-rollback rev=
+spoke generation=19
+spoke image=busybox:1.36
+override=5332ef85212a2879660df6bb1779821013cdae8e by=hub-b reason=sync to 5332ef85212a2879660df6bb1779821013cdae8e by lab-rollback
+--- 15:08:49
+hub-a OutOfSync op=Succeeded by=true rev=f531eae7c90e3e27f581d7ade25c7c99ddd7d2d5
+hub-b OutOfSync op=Succeeded by=lab-rollback rev=5332ef85212a2879660df6bb1779821013cdae8e
+spoke generation=17
+spoke image=registry.k8s.io/pause:3.10
+override=5332ef85212a2879660df6bb1779821013cdae8e by=hub-b reason=sync to 5332ef85212a2879660df6bb1779821013cdae8e by lab-rollback
+== hub-a
+15:08:46 info  overridden override  -      -   Skipping auto-sync: override to 5332ef85212a2879660df6bb1779821013cdae8e in place (sync to 5332ef85212a2879660df6bb1779821013cdae8e by lab-rollback, recorded by hub-b); sync to spike/multi-hub on any hub to resume automated syncs
+== hub-b
+15:08:45 info  acquired  operation hub-b  37  multihub: operation lease acquired (generation 37)
+15:08:45 info  override_set override  -      -   multihub: override to 5332ef85212a2879660df6bb1779821013cdae8e recorded (sync to 5332ef85212a2879660df6bb1779821013cdae8e by lab-rollback); automated syncs are paused on every hub until a sync to spike/multi-hub
+15:08:46 info  released  operation hub-b  -   multihub: released operation lease
+TIME                   COUNT   TYPE     MSG
+2026-11-20T15:08:46Z   1       Normal   Skipping auto-sync: override to 5332ef85212a2879660df6bb1779821013cdae8e in place (sync to 5332ef85212a2879660df6bb1779821013cdae8e by lab-rollback, recorded by hub-b); sync to spike/multi-hub on any hub to resume automated syncs
+TIME                   TYPE     MSG
+2026-11-20T15:08:45Z   Normal   multihub: override to 5332ef85212a2879660df6bb1779821013cdae8e recorded (sync to 5332ef85212a2879660df6bb1779821013cdae8e by lab-rollback); automated syncs are paused on every hub until a sync to spike/multi-hub
+=== clear: manual sync to HEAD on hub-a
+application.argoproj.io/lab-app patched
+manual sync requested on hub-a at 15:13:05Z
+--- 15:13:05
+hub-a OutOfSync op=Running by=lab-manual-sync rev=
+hub-b OutOfSync op=Succeeded by=lab-rollback rev=5332ef85212a2879660df6bb1779821013cdae8e
+spoke generation=17
+spoke image=registry.k8s.io/pause:3.10
+override=
+--- 15:13:08
+hub-a OutOfSync op=Running by=lab-manual-sync rev=48a00a091bb6ad92142da75d80bef8e3cb2de0ae
+hub-b OutOfSync op=Succeeded by=lab-rollback rev=5332ef85212a2879660df6bb1779821013cdae8e
+spoke generation=17
+spoke image=registry.k8s.io/pause:3.10
+override=
+--- 15:13:20
+hub-a OutOfSync op=Running by=lab-manual-sync rev=48a00a091bb6ad92142da75d80bef8e3cb2de0ae
+hub-b OutOfSync op=Succeeded by=lab-rollback rev=5332ef85212a2879660df6bb1779821013cdae8e
+spoke generation=17
+spoke image=busybox:1.36
+override=
+--- 15:13:29
+hub-a Synced op=Succeeded by=lab-manual-sync rev=48a00a091bb6ad92142da75d80bef8e3cb2de0ae
+hub-b Synced op=Succeeded by=lab-rollback rev=5332ef85212a2879660df6bb1779821013cdae8e
+spoke generation=19
+spoke image=busybox:1.36
+override=
+== hub-a
+15:13:05 info  acquired  operation hub-a  38  multihub: operation lease acquired (generation 38)
+15:13:05 info  override_cleared override  -      -   multihub: override to 5332ef85212a2879660df6bb1779821013cdae8e (sync to 5332ef85212a2879660df6bb1779821013cdae8e by lab-rollback, set by hub-b) cleared by a sync to spike/multi-hub by lab-manual-sync; automated syncs resume on every hub
+15:13:26 info  released  operation hub-a  -   multihub: released operation lease
+== hub-b
+=== resume: hub-b auto-sync back on, one commit
+application.argoproj.io/lab-app patched
+pushed generation 20 at 09:14:46
+application.argoproj.io/lab-app annotated
+application.argoproj.io/lab-app annotated
+hard refresh requested on both hubs at 15:14:46Z
+pin {'pinned-at': '2026-11-20T15:14:48.158988432Z', 'pinned-by': 'hub-a', 'pinned-commit-time': '2026-11-20T15:14:45Z', 'pinned-revision': '092bb7007d1e67106a46cd33016d87304699db3c'}
+hub-a Synced 092bb7007d1e67106a46cd33016d87304699db3c
+hub-b Synced 092bb7007d1e67106a46cd33016d87304699db3c
+spoke generation=20 rv=656468
+== hub-a
+2026-11-20T15:14:48Z rev=092bb70 selfHealAttempt=0
+2026-11-20T15:15:04Z rev=092bb70 selfHealAttempt=1
+== hub-b

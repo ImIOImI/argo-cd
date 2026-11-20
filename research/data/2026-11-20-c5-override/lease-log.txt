@@ -1,0 +1,15 @@
+== hub-a
+15:08:46 info  overridden override  -      -   Skipping auto-sync: override to 5332ef85212a2879660df6bb1779821013cdae8e in place (sync to 5332ef85212a2879660df6bb1779821013cdae8e by lab-rollback, recorded by hub-b); sync to spike/multi-hub on any hub to resume automated syncs
+15:13:05 info  acquired  operation hub-a  38  multihub: operation lease acquired (generation 38)
+15:13:05 info  override_cleared override  -      -   multihub: override to 5332ef85212a2879660df6bb1779821013cdae8e (sync to 5332ef85212a2879660df6bb1779821013cdae8e by lab-rollback, set by hub-b) cleared by a sync to spike/multi-hub by lab-manual-sync; automated syncs resume on every hub
+15:13:26 info  released  operation hub-a  -   multihub: released operation lease
+15:14:48 info  advanced  pin       -      -   multihub: advanced the pinned revision to 092bb7007d1e67106a46cd33016d87304699db3c
+15:14:48 info  acquired  auto-sync hub-a  39  multihub: operation lease acquired (generation 39)
+15:15:04 info  released  operation hub-a  -   multihub: released operation lease
+15:15:04 info  acquired  auto-sync hub-a  40  multihub: operation lease acquired (generation 40)
+15:15:04 info  released  operation hub-a  -   multihub: released operation lease
+== hub-b
+15:08:45 info  acquired  operation hub-b  37  multihub: operation lease acquired (generation 37)
+15:08:45 info  override_set override  -      -   multihub: override to 5332ef85212a2879660df6bb1779821013cdae8e recorded (sync to 5332ef85212a2879660df6bb1779821013cdae8e by lab-rollback); automated syncs are paused on every hub until a sync to spike/multi-hub
+15:08:46 info  released  operation hub-b  -   multihub: released operation lease
+15:14:48 info  held      auto-sync hub-a  -   Skipping auto-sync: operation lease held by hub-a (rechecking in 15s)

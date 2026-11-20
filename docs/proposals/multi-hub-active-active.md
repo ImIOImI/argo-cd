@@ -187,6 +187,14 @@ on the spoke. Every hub then honors the override until it's cleared by a
 sync to HEAD or by removing the override. Parameter overrides would be
 stored the same way, or disabled.
 
+*As built (2026-11-20):* the override is annotations on the app's Lease.
+Hubs don't compare at the override revision. Instead, every hub's
+**auto-sync stands down** while an override exists, which is the multi-hub
+form of Argo's own "rollback requires auto-sync off". Both hubs keep
+reporting OutOfSync against HEAD. A user sync to the `targetRevision` on any
+hub clears it. See
+[research/2026-11-20-c5-override.md](../../research/2026-11-20-c5-override.md).
+
 ### C6. Notifications
 Only the hub that ran an operation sends its notifications. For
 health-change notifications, a separate lease per app decides which hub
@@ -217,7 +225,7 @@ sends.
    and the follow-up
    [research/2026-11-20-c3-gaps.md](../../research/2026-11-20-c3-gaps.md)
    (manual syncs, mid-rollout death, takeover in 3–5s after expiry).*
-5. **C4, C5, C6.**
+5. **C5**: *done, see the C5 note above.* Then **C4, C6.**
 
 Keep all coordination logic in a new `controller/multihub` package behind an
 interface, with small calls into the controller. That keeps the rebase onto
