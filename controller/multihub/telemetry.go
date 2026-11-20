@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -30,6 +31,10 @@ const (
 	//   off:     debug only
 	// Lease errors follow the same dedup, but are never demoted below warn on change.
 	EnvLogDenials = "ARGOCD_MULTIHUB_LOG_DENIALS"
+	// With LOG_DENIALS=changes, a repeat refusal or error for an app is news
+	// again once none has been seen for this long, so a new episode is logged
+	// even when it repeats the last one word for word (default 2m; 0 = never).
+	EnvLogDenialsResetAfter = "ARGOCD_MULTIHUB_LOG_DENIALS_RESET_AFTER"
 	// Emit Kubernetes Events on the Application for takeover, lost lease,
 	// lease errors and operations waiting on another hub (default true).
 	EnvEvents = "ARGOCD_MULTIHUB_EVENTS"
@@ -49,8 +54,10 @@ type Telemetry struct {
 	LogLifecycle bool
 	LogRenewals  bool
 	LogDenials   DenialLogMode
-	Events       bool
-	Metrics      bool
+	// DenialsResetAfter: a quiet gap after which a repeat is reported again.
+	DenialsResetAfter time.Duration
+	Events            bool
+	Metrics           bool
 }
 
 func DefaultTelemetry() Telemetry {
@@ -90,10 +97,11 @@ type Report struct {
 // error reported per (app, path) so repeats can be collapsed.
 type Reporter struct {
 	cfg  Telemetry
+	now  func() time.Time
 	last sync.Map // appKey|path -> event|holder|reason
 }
 
-func NewReporter(cfg Telemetry) *Reporter { return &Reporter{cfg: cfg} }
+func NewReporter(cfg Telemetry) *Reporter { return &Reporter{cfg: cfg, now: time.Now} }
 
 // Plan decides how to report an event for app (any stable per-app key) on a
 // code path ("auto-sync" or "operation").

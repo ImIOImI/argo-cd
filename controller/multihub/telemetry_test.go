@@ -16,6 +16,7 @@ func TestTelemetryFromEnvDefaults(t *testing.T) {
 	assert.True(t, d.LogLifecycle)
 	assert.False(t, d.LogRenewals)
 	assert.Equal(t, DenialLogChanges, d.LogDenials)
+	assert.Equal(t, 2*time.Minute, d.DenialsResetAfter)
 	assert.True(t, d.Events)
 	assert.True(t, d.Metrics)
 }
@@ -24,9 +25,17 @@ func TestTelemetryFromEnvOverrides(t *testing.T) {
 	t.Setenv(EnvLogLifecycle, "false")
 	t.Setenv(EnvLogRenewals, "true")
 	t.Setenv(EnvLogDenials, "ALL")
+	t.Setenv(EnvLogDenialsResetAfter, "30s")
 	t.Setenv(EnvEvents, "false")
 	t.Setenv(EnvMetrics, "false")
-	assert.Equal(t, Telemetry{LogLifecycle: false, LogRenewals: true, LogDenials: DenialLogAll, Events: false, Metrics: false}, TelemetryFromEnv())
+	assert.Equal(t, Telemetry{LogLifecycle: false, LogRenewals: true, LogDenials: DenialLogAll, DenialsResetAfter: 30 * time.Second, Events: false, Metrics: false}, TelemetryFromEnv())
+}
+
+func TestTelemetryFromEnvResetAfter(t *testing.T) {
+	t.Setenv(EnvLogDenialsResetAfter, "0")
+	assert.Equal(t, time.Duration(0), TelemetryFromEnv().DenialsResetAfter, "0 = never reset")
+	t.Setenv(EnvLogDenialsResetAfter, "soon")
+	assert.Equal(t, 2*time.Minute, TelemetryFromEnv().DenialsResetAfter, "invalid falls back to the default")
 }
 
 func TestTelemetryFromEnvRejectsUnknownDenialMode(t *testing.T) {
@@ -163,4 +172,67 @@ func TestPinPlanErrorsWarnOnChange(t *testing.T) {
 	for range 2 {
 		assert.Equal(t, log.WarnLevel, all.PlanPin("a", PinError, "lookup failed").LogLevel)
 	}
+}
+
+// fakeNow is a settable clock for the Reporter.
+type fakeNow struct{ t time.Time }
+
+func (f *fakeNow) now() time.Time          { return f.t }
+func (f *fakeNow) advance(d time.Duration) { f.t = f.t.Add(d) }
+func reporterAt(cfg Telemetry) (*Reporter, *fakeNow) {
+	clk := &fakeNow{t: time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC)}
+	r := NewReporter(cfg)
+	r.now = clk.now
+	return r, clk
+}
+
+// The E7 finding (research/2026-11-14-c1-revision-pin.md): hub-b was refused
+// by hub-a 7 minutes after an identical refusal, and every refusal went to
+// debug because the dedup never forgot the earlier episode.
+func TestDenialsRepeatIsNewsAfterQuietGap(t *testing.T) {
+	r, clk := reporterAt(Telemetry{LogDenials: DenialLogChanges, DenialsResetAfter: 2 * time.Minute})
+
+	assert.Equal(t, log.InfoLevel, r.Plan("a", PathAutoSync, EventHeld, "hub-a", "").LogLevel)
+	// A continuous episode (rechecks every 15s) stays collapsed indefinitely:
+	// the gap is measured from the last refusal seen, not the last one logged.
+	for range 40 {
+		clk.advance(15 * time.Second)
+		assert.Equal(t, log.DebugLevel, r.Plan("a", PathAutoSync, EventHeld, "hub-a", "").LogLevel)
+	}
+
+	clk.advance(7 * time.Minute)
+	assert.Equal(t, log.InfoLevel, r.Plan("a", PathAutoSync, EventHeld, "hub-a", "").LogLevel, "new episode after a quiet gap")
+	clk.advance(15 * time.Second)
+	assert.Equal(t, log.DebugLevel, r.Plan("a", PathAutoSync, EventHeld, "hub-a", "").LogLevel, "and collapsed again within it")
+}
+
+func TestOperationWaitEventRepeatsAfterQuietGap(t *testing.T) {
+	r, clk := reporterAt(Telemetry{LogDenials: DenialLogChanges, DenialsResetAfter: 2 * time.Minute, Events: true})
+	assert.True(t, r.Plan("a", PathOperation, EventHeld, "hub-b", "").Event)
+	clk.advance(5 * time.Second)
+	assert.False(t, r.Plan("a", PathOperation, EventHeld, "hub-b", "").Event)
+	clk.advance(3 * time.Minute)
+	assert.True(t, r.Plan("a", PathOperation, EventHeld, "hub-b", "").Event, "a later wait is a new user-visible wait")
+}
+
+func TestErrorsWarnAgainAfterQuietGap(t *testing.T) {
+	r, clk := reporterAt(Telemetry{LogDenials: DenialLogChanges, DenialsResetAfter: time.Minute})
+	assert.Equal(t, log.WarnLevel, r.Plan("a", PathAutoSync, EventError, "", "forbidden").LogLevel)
+	clk.advance(30 * time.Second)
+	assert.Equal(t, log.DebugLevel, r.Plan("a", PathAutoSync, EventError, "", "forbidden").LogLevel)
+	clk.advance(61 * time.Second)
+	assert.Equal(t, log.WarnLevel, r.Plan("a", PathAutoSync, EventError, "", "forbidden").LogLevel)
+
+	assert.Equal(t, log.WarnLevel, r.PlanPin("a", PinError, "lookup failed").LogLevel)
+	clk.advance(30 * time.Second)
+	assert.Equal(t, log.DebugLevel, r.PlanPin("a", PinError, "lookup failed").LogLevel)
+	clk.advance(61 * time.Second)
+	assert.Equal(t, log.WarnLevel, r.PlanPin("a", PinError, "lookup failed").LogLevel, "pin errors too")
+}
+
+func TestResetAfterZeroNeverForgets(t *testing.T) {
+	r, clk := reporterAt(Telemetry{LogDenials: DenialLogChanges})
+	assert.Equal(t, log.InfoLevel, r.Plan("a", PathAutoSync, EventHeld, "hub-a", "").LogLevel)
+	clk.advance(24 * time.Hour)
+	assert.Equal(t, log.DebugLevel, r.Plan("a", PathAutoSync, EventHeld, "hub-a", "").LogLevel)
 }
