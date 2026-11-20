@@ -1697,7 +1697,7 @@ func (ctrl *ApplicationController) processRequestedAppOperation(app *appv1.Appli
 	if ctrl.multihub.Enabled() && isOperationInProgress(app) {
 		if theirs, hub, ok := ctrl.multihubTakenOver(ctx, app); ok {
 			state = theirs
-			ctrl.setOperationState(ctx, app, state)
+			ctrl.multihubShowState(ctx, app, state)
 			d := multihub.Decision{Event: multihub.EventFollowing, Holder: hub, Reason: "operation taken over by " + hub}
 			ctrl.multihubReport(ctx, app, multihub.PathOperation, d, fmt.Sprintf(
 				"multihub: this operation was taken over by %s; showing its state (%s: %s)", hub, state.Phase, state.Message))

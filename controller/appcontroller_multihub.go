@@ -449,3 +449,26 @@ func (ctrl *ApplicationController) multihubRequeue(app *appv1.Application, after
 	}
 	ctrl.requestAppRefresh(app.QualifiedName(), CompareWithRecent.Pointer(), &after)
 }
+
+// multihubShowState writes another hub's operation state onto app as-is
+// (C3 follow). Unlike setOperationState it doesn't stamp finishedAt: the
+// operation finished when the other hub says it did. A completed state
+// also clears app's operation.
+func (ctrl *ApplicationController) multihubShowState(ctx context.Context, app *appv1.Application, state *appv1.OperationState) {
+	ops := []map[string]any{{"op": "add", "path": "/status/operationState", "value": state}}
+	if state.Phase.Completed() && app.Operation != nil {
+		ops = append(ops, map[string]any{"op": "remove", "path": "/operation"})
+	}
+	patch, err := json.Marshal(ops)
+	if err == nil {
+		_, err = ctrl.PatchAppWithWriteBack(ctx, app.Name, app.Namespace, types.JSONPatchType, patch, metav1.PatchOptions{})
+	}
+	if err != nil {
+		log.WithFields(applog.GetAppLogFields(app)).WithError(err).Warn("multihub: failed to show the operation state of the hub that took it over")
+		return
+	}
+	app.Status.OperationState = state
+	if state.Phase.Completed() {
+		app.Operation = nil
+	}
+}
