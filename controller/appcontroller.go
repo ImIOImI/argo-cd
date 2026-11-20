@@ -2370,6 +2370,11 @@ func (ctrl *ApplicationController) processAppRefreshQueueItem() (processNext boo
 		app.Status.Summary = tree.GetSummary(app)
 	}
 
+	// multihub: if another hub died mid-operation, resume its operation here
+	// (same startedAt, so running hooks are adopted). It sets app.Operation,
+	// so auto-sync below won't start a second one.
+	ctrl.multihubClaimOrphan(ctx, app)
+
 	canSync, _ := project.Spec.SyncWindows.Matches(app).CanSync(false, nil)
 	if canSync {
 		syncErrCond, opDuration := ctrl.autoSync(ctx, app, compareResult.syncStatus, compareResult.resources, compareResult.revisionsMayHaveChanges)

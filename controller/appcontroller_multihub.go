@@ -11,6 +11,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
@@ -350,5 +352,49 @@ func (ctrl *ApplicationController) multihubMirror(ctx context.Context, app *appv
 // mirrored operation and operation state on this hub's Application and
 // queues the operation. It reports whether app now has an operation.
 func (ctrl *ApplicationController) multihubClaimOrphan(ctx context.Context, app *appv1.Application) bool {
-	return false
+	if !ctrl.multihub.Enabled() || app.Operation != nil {
+		return false
+	}
+	fail := func(err error) bool {
+		d := multihub.Decision{Event: multihub.EventError, Reason: err.Error()}
+		ctrl.multihubReport(ctx, app, multihub.PathTakeover, d, "multihub: could not take over another hub's operation: "+err.Error())
+		return false
+	}
+	server, key, err := ctrl.multihubTarget(ctx, app)
+	if err != nil {
+		return fail(err)
+	}
+	claim, err := ctrl.multihub.ClaimOrphan(ctx, server, key)
+	if err != nil {
+		return fail(err)
+	}
+	if claim.Event != multihub.ClaimClaimed {
+		return false
+	}
+	var state appv1.OperationState
+	if err := json.Unmarshal(claim.Mirror.State, &state); err != nil {
+		return fail(fmt.Errorf("decode operation mirrored by %s: %w", claim.Mirror.Hub, err))
+	}
+	op := state.Operation.DeepCopy()
+	op.Info = append(op.Info, &appv1.Info{Name: "multihub", Value: "taken over from " + claim.Mirror.Hub})
+	state.Operation = *op
+	patch, err := json.Marshal(map[string]any{
+		"operation": op,
+		"status":    map[string]any{"operationState": state},
+	})
+	if err != nil {
+		return fail(err)
+	}
+	if _, err := ctrl.PatchAppWithWriteBack(ctx, app.Name, app.Namespace, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+		return fail(fmt.Errorf("set operation taken over from %s: %w", claim.Mirror.Hub, err))
+	}
+	app.Operation = op
+	app.Status.OperationState = &state
+	ctrl.appOperationQueue.Add(ctrl.toAppKey(app.QualifiedName()))
+
+	d := multihub.Decision{Event: multihub.EventTakeover, Holder: claim.Mirror.Hub, Generation: claim.Generation, Reason: "lease held by " + claim.Mirror.Hub + " expired"}
+	ctrl.multihubReport(ctx, app, multihub.PathTakeover, d, fmt.Sprintf(
+		"multihub: took over the running operation from %s (its lease expired); resuming it from %q, started %s (generation %d)",
+		claim.Mirror.Hub, state.Message, state.StartedAt.UTC().Format(time.RFC3339), claim.Generation))
+	return true
 }
