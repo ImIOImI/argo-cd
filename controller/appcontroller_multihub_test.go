@@ -631,3 +631,115 @@ func TestMultihubRefreshResumesOrphanInsteadOfAutoSyncing(t *testing.T) {
 // orphanTestConfigMap is missing from the (empty) live state, so the app is
 // OutOfSync and, with automated sync, would auto-sync.
 const orphanTestConfigMap = `{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"lab","namespace":"` + test.FakeDestNamespace + `"},"data":{"generation":"1"}}`
+
+// returningFixture: this controller (hub-b) was running app's operation,
+// stopped (partitioned, or its controller died), and hub-a took the
+// operation over. app still shows hub-b's own last state.
+func returningFixture(t *testing.T) (*multihubPinFixture, *v1alpha1.Application, *v1alpha1.OperationState, int32) {
+	t.Helper()
+	app := pinTestApp()
+	started := metav1.NewTime(time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC).Local())
+	app.Operation = &v1alpha1.Operation{Sync: &v1alpha1.SyncOperation{Revision: "abc123"}}
+	app.Status.OperationState = &v1alpha1.OperationState{
+		Operation: *app.Operation,
+		Phase:     synccommon.OperationRunning,
+		Message:   "waiting for completion of hook batch/Job/presync",
+		StartedAt: started,
+	}
+	f := newMultihubPinFixture(t, &fakeData{
+		apps:              []runtime.Object{app, &defaultProj},
+		manifestResponses: []*apiclient.ManifestResponse{{Manifests: []string{}}},
+	}, app)
+	server, key := f.target(t)
+	d, err := f.ctrl.multihub.AcquireForOperation(t.Context(), server, key)
+	require.NoError(t, err)
+	f.ctrl.multihubMirror(t.Context(), app, d.Generation, app.Status.OperationState)
+	f.expireLease(t)
+	claim, err := f.hubA.ClaimOrphan(t.Context(), server, key)
+	require.NoError(t, err)
+	require.Equal(t, multihub.ClaimClaimed, claim.Event)
+
+	theirs := app.Status.OperationState.DeepCopy()
+	theirs.Message = "hook presync running (on hub-a)"
+	return f, app, theirs, claim.Generation
+}
+
+func (f *multihubPinFixture) hubAMirrors(t *testing.T, gen int32, state *v1alpha1.OperationState) {
+	t.Helper()
+	server, key := f.target(t)
+	raw, err := json.Marshal(state)
+	require.NoError(t, err)
+	require.NoError(t, f.hubA.MirrorOperation(t.Context(), server, key, gen, !state.Phase.Completed(), raw))
+}
+
+func TestMultihubReturningHubFollowsARunningTakeover(t *testing.T) {
+	f, app, theirs, gen := returningFixture(t)
+	f.hubAMirrors(t, gen, theirs)
+	hook := captureLogs(t)
+
+	f.ctrl.processRequestedAppOperation(app)
+
+	got, err := f.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(app.Namespace).Get(t.Context(), app.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, got.Status.OperationState)
+	assert.Equal(t, synccommon.OperationRunning, got.Status.OperationState.Phase, "not synced here, not failed either")
+	assert.Equal(t, "hook presync running (on hub-a)", got.Status.OperationState.Message, "hub-a's progress shown")
+	assert.NotNil(t, got.Operation, "still in progress")
+
+	m, _ := f.mirror(t)
+	assert.Equal(t, "hub-a", m.Hub, "hub-b must not take the operation back")
+
+	var followed bool
+	for _, e := range hook.AllEntries() {
+		if e.Data["multihub.event"] == string(multihub.EventFollowing) {
+			followed = true
+			assert.Equal(t, "hub-a", e.Data["multihub.holder"])
+		}
+	}
+	assert.True(t, followed, "logged")
+}
+
+// The dangerous case: hub-a finished and released before hub-b came back. A
+// free lease must not let hub-b resume (and so repeat) the operation.
+func TestMultihubReturningHubTakesTheFinalResult(t *testing.T) {
+	f, app, theirs, gen := returningFixture(t)
+	theirs.Phase = synccommon.OperationSucceeded
+	theirs.Message = "successfully synced (all tasks run)"
+	finished := metav1.NewTime(theirs.StartedAt.Add(time.Minute))
+	theirs.FinishedAt = &finished
+	f.hubAMirrors(t, gen, theirs)
+	server, key := f.target(t)
+	require.NoError(t, f.hubA.Release(t.Context(), server, key))
+
+	f.ctrl.processRequestedAppOperation(app)
+
+	got, err := f.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(app.Namespace).Get(t.Context(), app.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, got.Status.OperationState)
+	assert.Equal(t, synccommon.OperationSucceeded, got.Status.OperationState.Phase)
+	assert.Equal(t, "successfully synced (all tasks run)", got.Status.OperationState.Message, "hub-a's result, not a re-run")
+	assert.Nil(t, got.Operation, "completed")
+
+	m, _ := f.mirror(t)
+	assert.Equal(t, "hub-a", m.Hub, "hub-b didn't re-run and re-mirror it")
+	d, err := f.hubA.AcquireForOperation(t.Context(), server, key)
+	require.NoError(t, err)
+	assert.Equal(t, multihub.EventAcquired, d.Event, "hub-b didn't take the lease")
+
+	ok, _ := f.ctrl.isRefreshRequested(f.ctrl.toAppKey(app.QualifiedName()))
+	assert.True(t, ok, "refresh so the app's sync status catches up")
+}
+
+// A different operation on the mirror (another startedAt) is not ours: the
+// C2 behavior stands (stop with an error while another hub holds the lease).
+func TestMultihubReturningHubIgnoresADifferentOperation(t *testing.T) {
+	f, app, theirs, gen := returningFixture(t)
+	theirs.StartedAt = metav1.NewTime(theirs.StartedAt.Add(time.Hour))
+	f.hubAMirrors(t, gen, theirs)
+
+	f.ctrl.processRequestedAppOperation(app)
+
+	got, err := f.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(app.Namespace).Get(t.Context(), app.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, synccommon.OperationError, got.Status.OperationState.Phase)
+}

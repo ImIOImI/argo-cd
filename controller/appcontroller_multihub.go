@@ -398,3 +398,10 @@ func (ctrl *ApplicationController) multihubClaimOrphan(ctx context.Context, app 
 		claim.Mirror.Hub, state.Message, state.StartedAt.UTC().Format(time.RFC3339), claim.Generation))
 	return true
 }
+
+// multihubTakenOver reports whether app's in-progress operation was taken
+// over by another hub (C3): the mirror on the Lease is the same operation
+// (same startedAt), recorded by another hub. It returns that hub's state.
+func (ctrl *ApplicationController) multihubTakenOver(ctx context.Context, app *appv1.Application) (*appv1.OperationState, bool) {
+	return nil, false
+}

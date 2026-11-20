@@ -149,6 +149,7 @@ const (
 	EventError        Event = "error"         // could not reach or update the lease
 	EventReleaseError Event = "release_error" // could not release (it will expire)
 	EventMirrorError  Event = "mirror_error"  // could not mirror operation state (C3); a takeover would restart it
+	EventFollowing    Event = "following"     // this hub's operation was taken over by another hub; showing its state (C3)
 	EventDisabled     Event = "disabled"      // coordination is off
 )
 
