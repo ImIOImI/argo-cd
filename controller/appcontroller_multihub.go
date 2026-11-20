@@ -374,6 +374,12 @@ func (ctrl *ApplicationController) multihubClaimOrphan(ctx context.Context, app 
 	if err != nil {
 		return fail(err)
 	}
+	if claim.Event == multihub.ClaimWaiting {
+		// Look again when the other hub's lease expires: if it has died by
+		// then, that refresh claims the operation.
+		ctrl.multihubRequeue(app, claim.RetryAfter+multihubClaimSlack)
+		return false
+	}
 	if claim.Event != multihub.ClaimClaimed {
 		return false
 	}
@@ -429,4 +435,12 @@ func (ctrl *ApplicationController) multihubTakenOver(ctx context.Context, app *a
 		return nil, "", false
 	}
 	return &theirs, m.Hub, true
+}
+
+func (ctrl *ApplicationController) multihubRequeue(app *appv1.Application, after time.Duration) {
+	if ctrl.multihubRequeueRefresh != nil {
+		ctrl.multihubRequeueRefresh(app, after)
+		return
+	}
+	ctrl.requestAppRefresh(app.QualifiedName(), CompareWithRecent.Pointer(), &after)
 }
