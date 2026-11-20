@@ -257,5 +257,41 @@ func generationOf(lease *coordinationv1.Lease) int32 {
 // back as the previous hub left it and frees the lease, so any hub (this one
 // included) can claim the operation again.
 func (c *Coordinator) ReturnClaim(ctx context.Context, server string, key Key, claim Claim) error {
-	return nil
+	if c == nil {
+		return nil
+	}
+	enc, err := encodeMirror(claim.Mirror)
+	if err != nil {
+		return err
+	}
+	client, err := c.clients(server)
+	if err != nil {
+		return fmt.Errorf("multihub: client for %s: %w", server, err)
+	}
+	leases := client.CoordinationV1().Leases(c.cfg.Namespace)
+	name := key.LeaseName()
+	for attempt := 0; attempt < maxConflictRetries; attempt++ {
+		lease, err := leases.Get(ctx, name, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			return ErrNotHolder
+		}
+		if err != nil {
+			return fmt.Errorf("multihub: get lease %s: %w", name, err)
+		}
+		if holderOf(lease) != c.cfg.HubID || generationOf(lease) != claim.Generation {
+			return ErrNotHolder
+		}
+		empty := ""
+		lease.Spec.HolderIdentity = &empty
+		lease.Annotations[AnnotationOperation] = enc
+		_, err = leases.Update(ctx, lease, metav1.UpdateOptions{})
+		if apierrors.IsConflict(err) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("multihub: return claim on lease %s: %w", name, err)
+		}
+		return nil
+	}
+	return fmt.Errorf("multihub: lease %s: too many conflicting updates", name)
 }

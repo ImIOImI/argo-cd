@@ -401,6 +401,11 @@ func (ctrl *ApplicationController) multihubClaimOrphan(ctx context.Context, app 
 		return fail(err)
 	}
 	if _, err := ctrl.PatchAppWithWriteBack(ctx, app.Name, app.Namespace, types.JSONPatchType, patch, metav1.PatchOptions{}); err != nil {
+		// Give the claim back, or the mirror would name this hub, which never
+		// claims its own operations, and the operation would be stranded.
+		if rerr := ctrl.multihub.ReturnClaim(ctx, server, key, claim); rerr != nil {
+			err = fmt.Errorf("%w (and giving the claim back failed: %v)", err, rerr)
+		}
 		return fail(fmt.Errorf("set operation taken over from %s: %w", claim.Mirror.Hub, err))
 	}
 	app.Operation = op
