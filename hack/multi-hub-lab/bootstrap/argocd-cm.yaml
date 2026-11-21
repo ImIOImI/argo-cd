@@ -1,0 +1,15 @@
+# The argocd-cm settings every hub shares, from Git. Applied server-side, so
+# Argo owns ONLY the keys listed here; hub-specific keys (url, SSO, ...) set
+# at install stay as they are. Never pruned or deleted with the root app.
+#
+# timeout.reconciliation: the periodic refresh period. With multihub on, the
+# fork reads it live: changing it here changes both hubs, no restart.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-options: ServerSideApply=true,Prune=false,Delete=false
+data:
+  timeout.reconciliation: "60s"

@@ -1,0 +1,19 @@
+# The root app each hub is bootstrapped with (`./root.sh`), then manages
+# itself: it syncs this directory, which contains this file.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lab-root
+  namespace: argocd
+  # no resources-finalizer: deleting the root must never cascade
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ImIOImI/argo-cd.git
+    targetRevision: spike/multi-hub
+    path: hack/multi-hub-lab/bootstrap
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated: {prune: false, selfHeal: true}
