@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
+	"github.com/argoproj/argo-cd/v3/common"
 	"github.com/argoproj/argo-cd/v3/controller/multihub"
 	appv1 "github.com/argoproj/argo-cd/v3/pkg/apis/application/v1alpha1"
 	"github.com/argoproj/argo-cd/v3/reposerver/apiclient"
@@ -674,7 +675,7 @@ func (ctrl *ApplicationController) multihubSkipRefresh(ctx context.Context, app 
 	rec := view.Refresh
 	if !ok || !view.HasRefresh || !view.HasPin ||
 		rec.By == ctrl.multihub.HubID() ||
-		time.Since(rec.At) >= ctrl.statusRefreshTimeout ||
+		time.Since(rec.At) >= ctrl.refreshPeriod() ||
 		rec.Revision != view.Pin.Revision ||
 		rec.Fingerprint != multihubFingerprint(app, server) {
 		return false
@@ -736,7 +737,7 @@ func (ctrl *ApplicationController) multihubPeriodicRefreshOnly(app *appv1.Applic
 	if !currentSourceEqualsSyncedSource(app) {
 		return false
 	}
-	soft, hard := comparisonExpiry(ctrl.statusWithEffectiveReconciledAt(app), ctrl.statusRefreshTimeout, ctrl.statusHardRefreshTimeout)
+	soft, hard := comparisonExpiry(ctrl.statusWithEffectiveReconciledAt(app), ctrl.refreshPeriod(), ctrl.statusHardRefreshTimeout)
 	if !soft || hard {
 		return false
 	}
@@ -754,5 +755,20 @@ func (ctrl *ApplicationController) multihubPeriodicRefreshOnly(app *appv1.Applic
 // or if the key is missing or invalid, it's the value the controller
 // started with.
 func (ctrl *ApplicationController) refreshPeriod() time.Duration {
-	return ctrl.statusRefreshTimeout
+	if !ctrl.multihub.Enabled() {
+		return ctrl.statusRefreshTimeout
+	}
+	cm, err := ctrl.settingsMgr.GetConfigMapByName(common.ArgoCDConfigMapName)
+	if err != nil {
+		return ctrl.statusRefreshTimeout
+	}
+	d, err := time.ParseDuration(cm.Data[multihubRefreshPeriodKey])
+	if err != nil || d < 0 {
+		return ctrl.statusRefreshTimeout
+	}
+	return d
 }
+
+// multihubRefreshPeriodKey is the argocd-cm key upstream reads once at
+// startup (as ARGOCD_RECONCILIATION_TIMEOUT); multihub reads it live.
+const multihubRefreshPeriodKey = "timeout.reconciliation"

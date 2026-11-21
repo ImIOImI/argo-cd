@@ -2242,7 +2242,7 @@ func (ctrl *ApplicationController) processAppRefreshQueueItem() (processNext boo
 	}
 	// needRefreshAppStatus only reads the application, so the informer's copy answers it and the
 	// queue items that need no refresh never pay for a copy.
-	needRefresh, refreshType, comparisonLevel := ctrl.needRefreshAppStatus(origApp, ctrl.statusRefreshTimeout, ctrl.statusHardRefreshTimeout)
+	needRefresh, refreshType, comparisonLevel := ctrl.needRefreshAppStatus(origApp, ctrl.refreshPeriod(), ctrl.statusHardRefreshTimeout)
 
 	if !needRefresh {
 		return processNext
