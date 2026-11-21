@@ -1333,3 +1333,63 @@ func TestMultihubSkippedRefreshRebuildsTheResourceTree(t *testing.T) {
 		assert.NotEqual(t, "Sentinel", n.Kind, "tree rebuilt from the live watch")
 	}
 }
+
+func periodController(t *testing.T, cm map[string]string, multihubOn bool) *ApplicationController {
+	t.Helper()
+	app := pinTestApp()
+	f := newMultihubPinFixture(t, &fakeData{apps: []runtime.Object{app, &defaultProj}, configMapData: cm}, app)
+	if !multihubOn {
+		f.ctrl.multihub = nil
+	}
+	return f.ctrl
+}
+
+func TestMultihubRefreshPeriodFollowsArgocdCM(t *testing.T) {
+	// the fake controller starts with a 1m period
+	assert.Equal(t, 10*time.Minute, periodController(t, map[string]string{"timeout.reconciliation": "10m"}, true).refreshPeriod())
+	assert.Equal(t, 2*time.Minute, periodController(t, map[string]string{"timeout.reconciliation": "120s"}, true).refreshPeriod())
+	assert.Equal(t, time.Minute, periodController(t, map[string]string{}, true).refreshPeriod(), "key missing: startup value")
+	assert.Equal(t, time.Minute, periodController(t, map[string]string{"timeout.reconciliation": "soon"}, true).refreshPeriod(), "invalid: startup value")
+	assert.Equal(t, time.Minute, periodController(t, map[string]string{"timeout.reconciliation": "10m"}, false).refreshPeriod(), "multihub off: upstream behavior")
+}
+
+func TestMultihubRefreshPeriodChangesLive(t *testing.T) {
+	ctrl := periodController(t, map[string]string{"timeout.reconciliation": "10m"}, true)
+	require.Equal(t, 10*time.Minute, ctrl.refreshPeriod())
+	cms := ctrl.kubeClientset.CoreV1().ConfigMaps(test.FakeArgoCDNamespace)
+	cm, err := cms.Get(t.Context(), "argocd-cm", metav1.GetOptions{})
+	require.NoError(t, err)
+	cm.Data["timeout.reconciliation"] = "2m"
+	_, err = cms.Update(t.Context(), cm, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool { return ctrl.refreshPeriod() == 2*time.Minute }, 10*time.Second, 20*time.Millisecond, "no restart needed")
+}
+
+// The expiry check uses the live period: an app refreshed 5 minutes ago is
+// not due under a 10m period, and is under a 2m period.
+func TestMultihubPeriodicRefreshUsesTheLivePeriod(t *testing.T) {
+	for period, wantRefresh := range map[string]bool{"10m": false, "2m": true} {
+		t.Run(period, func(t *testing.T) {
+			app := pinTestApp()
+			fiveAgo := metav1.NewTime(time.Now().Add(-5 * time.Minute))
+			app.Status.ReconciledAt = &fiveAgo
+			app.Status.Sync = v1alpha1.SyncStatus{Status: v1alpha1.SyncStatusCodeSynced, Revision: "abc123",
+				ComparedTo: v1alpha1.ComparedTo{Source: *app.Spec.Source, Destination: app.Spec.Destination}}
+			generated := 0
+			f := newMultihubPinFixture(t, &fakeData{
+				apps:               []runtime.Object{app, &defaultProj},
+				configMapData:      map[string]string{"timeout.reconciliation": period},
+				manifestResponses:  []*apiclient.ManifestResponse{{Manifests: []string{}, Namespace: test.FakeDestNamespace, Server: test.FakeClusterURL, Revision: "abc123"}},
+				managedLiveObjs:    map[kube.ResourceKey]*unstructured.Unstructured{},
+				onGenerateManifest: func(*apiclient.ManifestRequest) { generated++ },
+			}, app)
+			f.lookup["abc123"] = pinT1
+			key, err := cache.MetaNamespaceKeyFunc(app)
+			require.NoError(t, err)
+			f.ctrl.appRefreshQueue.Add(key)
+			f.ctrl.processAppRefreshQueueItem()
+			assert.Equal(t, wantRefresh, generated > 0)
+		})
+	}
+}

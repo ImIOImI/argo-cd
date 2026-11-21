@@ -747,3 +747,12 @@ func (ctrl *ApplicationController) multihubPeriodicRefreshOnly(app *appv1.Applic
 	ctrl.refreshRequestedAppsMutex.Unlock()
 	return !pending
 }
+
+// refreshPeriod is the periodic refresh period in force now. With multihub
+// on, it follows argocd-cm's timeout.reconciliation live, so one change to
+// that key (e.g. from Git) changes every hub without a restart. Otherwise,
+// or if the key is missing or invalid, it's the value the controller
+// started with.
+func (ctrl *ApplicationController) refreshPeriod() time.Duration {
+	return ctrl.statusRefreshTimeout
+}
