@@ -12,4 +12,4 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: ServerSideApply=true,Prune=false,Delete=false
 data:
-  timeout.reconciliation: "60s"
+  timeout.reconciliation: "120s"
