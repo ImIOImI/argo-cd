@@ -1187,7 +1187,7 @@ func (sf *skipFixture) publish(t *testing.T, by *multihub.Coordinator, revision,
 	// let hub-b's Lease watch see it
 	require.Eventually(t, func() bool {
 		v, ok := sf.ctrl.multihub.Cached(server, key)
-		return ok && v.HasRefresh && v.Refresh.Revision == revision && v.Refresh.Fingerprint == fingerprint
+		return ok && v.HasRefresh && v.Refresh.By == by.HubID() && v.Refresh.Revision == revision && v.Refresh.Fingerprint == fingerprint
 	}, 10*time.Second, 20*time.Millisecond)
 	t.Cleanup(sf.ctrl.multihub.StopWatches)
 }
@@ -1289,4 +1289,47 @@ func TestMultihubPeriodicRefreshComparesWhenSharingIsOff(t *testing.T) {
 func multihubWithSpoke(sf *skipFixture, share bool) *multihub.Coordinator {
 	clients := func(string) (kubernetes.Interface, error) { return sf.spoke, nil }
 	return multihub.New(multihub.Config{HubID: "hub-b", LeaseDuration: time.Minute, ShareRefresh: share, Telemetry: multihub.DefaultTelemetry()}, clients)
+}
+
+// A controller refresh request that is pending when the periodic refresh
+// comes due (e.g. a resource just changed on the spoke) is this hub's own
+// work: don't skip it.
+func TestMultihubPeriodicRefreshComparesWhenARefreshIsPending(t *testing.T) {
+	sf := newSkipFixture(t)
+	sf.ctrl.multihub = multihubWithSpoke(sf, true)
+	sf.publish(t, sf.hubA, "abc123", sf.fingerprint(t), sf.peerResult())
+	sf.ctrl.requestAppRefresh(sf.app.QualifiedName(), CompareWithRecent.Pointer(), nil)
+
+	sf.periodicRefresh(t)
+
+	assert.Positive(t, sf.generated, "the pending request is honored locally")
+}
+
+// A skipping hub still rebuilds its resource tree (for the UI) from its own
+// live watch of the spoke.
+func TestMultihubSkippedRefreshRebuildsTheResourceTree(t *testing.T) {
+	sf := newSkipFixture(t)
+	sf.ctrl.multihub = multihubWithSpoke(sf, true)
+	sf.periodicRefresh(t) // a local refresh first: caches the managed resources
+	require.Positive(t, sf.generated)
+	sentinel := &v1alpha1.ApplicationTree{Nodes: []v1alpha1.ResourceNode{{ResourceRef: v1alpha1.ResourceRef{Kind: "Sentinel", Name: "stale"}}}}
+	instance := sf.app.InstanceName(sf.ctrl.namespace)
+	require.NoError(t, sf.ctrl.cache.SetAppResourcesTree(instance, sentinel))
+	due, err := sf.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(sf.app.Namespace).Get(t.Context(), sf.app.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	old := metav1.NewTime(time.Now().Add(-10 * time.Minute))
+	due.Status.ReconciledAt = &old
+	require.NoError(t, sf.ctrl.appInformer.GetIndexer().Update(due))
+	sf.app = due
+	sf.publish(t, sf.hubA, "abc123", sf.fingerprint(t), sf.peerResult())
+	generated := sf.generated
+
+	sf.periodicRefresh(t)
+
+	require.Equal(t, generated, sf.generated, "skipped")
+	var tree v1alpha1.ApplicationTree
+	require.NoError(t, sf.ctrl.cache.GetAppResourcesTree(instance, &tree))
+	for _, n := range tree.Nodes {
+		assert.NotEqual(t, "Sentinel", n.Kind, "tree rebuilt from the live watch")
+	}
 }
