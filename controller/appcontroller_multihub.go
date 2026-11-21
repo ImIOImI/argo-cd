@@ -663,5 +663,67 @@ func multihubHasErrorCondition(app *appv1.Application) bool {
 // instead of comparing (C7). It reports whether it did; if not, the caller
 // refreshes normally.
 func (ctrl *ApplicationController) multihubSkipRefresh(ctx context.Context, app *appv1.Application) bool {
-	return false
+	if !ctrl.multihub.ShareRefresh() || !ctrl.multihubShareable(app) || !ctrl.multihubPeriodicRefreshOnly(app) {
+		return false
+	}
+	server, key, err := ctrl.multihubTarget(ctx, app)
+	if err != nil {
+		return false
+	}
+	view, ok := ctrl.multihub.Cached(server, key)
+	rec := view.Refresh
+	if !ok || !view.HasRefresh || !view.HasPin ||
+		rec.By == ctrl.multihub.HubID() ||
+		time.Since(rec.At) >= ctrl.statusRefreshTimeout ||
+		rec.Revision != view.Pin.Revision ||
+		rec.Fingerprint != multihubFingerprint(app, server) {
+		return false
+	}
+	raw, err := ctrl.multihub.FetchResult(ctx, server, key, rec.ResultHash)
+	if err != nil {
+		return false
+	}
+	var res multihubSharedResult
+	if err := json.Unmarshal(raw, &res); err != nil {
+		return false
+	}
+	// Delete-hook finalizers follow the comparison; let a local refresh
+	// handle any change to them.
+	if res.HasPreDeleteHooks != app.HasPreDeleteFinalizer() || res.HasPostDeleteHooks != app.HasPostDeleteFinalizer() {
+		return false
+	}
+	app.Status.Sync = res.Sync
+	app.Status.Health = res.Health
+	app.Status.Resources = res.Resources
+	app.Status.SourceType = res.SourceType
+	app.Status.SourceTypes = res.SourceTypes
+	app.Status.ControllerNamespace = ctrl.namespace
+	now := metav1.Now()
+	ctrl.noteReconciled(app.QualifiedName(), now.Time)
+	app.Status.ReconciledAt = &now
+	if ctrl.multihub.Telemetry().Metrics {
+		multihub.DecisionsTotal.WithLabelValues(ctrl.multihub.HubID(), multihub.PathRefresh, string(multihub.EventShared)).Inc()
+	}
+	log.WithFields(applog.GetAppLogFields(app)).WithFields(log.Fields{
+		"multihub.hub":      ctrl.multihub.HubID(),
+		"multihub.path":     multihub.PathRefresh,
+		"multihub.event":    string(multihub.EventShared),
+		"multihub.holder":   rec.By,
+		"multihub.revision": rec.Revision,
+	}).Debugf("multihub: periodic refresh skipped; using %s's refresh from %s ago", rec.By, time.Since(rec.At).Round(time.Second))
+	return true
+}
+
+// multihubPeriodicRefreshOnly reports whether app is due only because its
+// periodic (soft) refresh period ran out: no user or controller request, no
+// spec change, no hard refresh. Only those refreshes are shared (C7).
+func (ctrl *ApplicationController) multihubPeriodicRefreshOnly(app *appv1.Application) bool {
+	if _, ok := app.IsRefreshRequested(); ok {
+		return false
+	}
+	if !currentSourceEqualsSyncedSource(app) {
+		return false
+	}
+	soft, hard := comparisonExpiry(ctrl.statusWithEffectiveReconciledAt(app), ctrl.statusRefreshTimeout, ctrl.statusHardRefreshTimeout)
+	return soft && !hard
 }

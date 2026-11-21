@@ -181,6 +181,7 @@ const (
 	PathPin       = "pin"      // revision pin decisions (event = PinEvent)
 	PathTakeover  = "takeover" // claiming another hub's orphaned operation (C3)
 	PathOverride  = "override" // manual pins that pause automated syncs (C5)
+	PathRefresh   = "refresh"  // shared refresh (C7)
 )
 
 // DecisionsTotal counts every lease decision by hub, code path and event.

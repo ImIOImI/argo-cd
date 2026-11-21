@@ -2286,6 +2286,14 @@ func (ctrl *ApplicationController) processAppRefreshQueueItem() (processNext boo
 		}).Info("Reconciliation completed")
 	}()
 
+	// multihub (C7): if another hub just did this periodic refresh, show its
+	// result instead of comparing again.
+	if ctrl.multihubSkipRefresh(ctx, app) {
+		logCtx = logCtx.WithField("multihub.shared", true)
+		patchDuration = ctrl.persistReconciliationStatus(ctx, origApp, &app.Status)
+		return processNext
+	}
+
 	if comparisonLevel == ComparisonWithNothing {
 		// If the destination cluster is invalid, fallback to the normal reconciliation flow
 		if destCluster, err = argo.GetDestinationCluster(ctx, app.Spec.Destination, ctrl.db); err == nil {

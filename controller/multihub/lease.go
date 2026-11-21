@@ -82,6 +82,7 @@ func ConfigFromEnv() Config {
 		Namespace:     env.StringFromEnv(EnvNamespace, DefaultNamespace),
 		LeaseDuration: env.ParseDurationFromEnv(EnvLeaseDuration, DefaultLeaseDuration, time.Second, time.Hour),
 		SettleWindow:  env.ParseDurationFromEnv(EnvSettleWindow, DefaultSettleWindow, 0, time.Hour),
+		ShareRefresh:  env.ParseBoolFromEnv(EnvShareRefresh, true),
 		Telemetry:     TelemetryFromEnv(),
 	}
 }
@@ -95,7 +96,7 @@ func (c *Coordinator) Reporter() *Reporter {
 }
 
 // ShareRefresh reports whether shared refresh (C7) is on.
-func (c *Coordinator) ShareRefresh() bool { return false }
+func (c *Coordinator) ShareRefresh() bool { return c != nil && c.cfg.ShareRefresh }
 
 // Telemetry returns the telemetry settings (defaults when disabled).
 func (c *Coordinator) Telemetry() Telemetry {
@@ -162,6 +163,7 @@ const (
 	EventOverrideSet     Event = "override_set"     // a user's sync to a specific revision recorded the override (C5)
 	EventOverrideCleared Event = "override_cleared" // a user's sync to the targetRevision cleared it (C5)
 	EventOverridden      Event = "overridden"       // auto-sync skipped: an override is in place (C5)
+	EventShared          Event = "shared"           // periodic refresh skipped: another hub's fresh result used (C7)
 	EventDisabled        Event = "disabled"         // coordination is off
 )
 
