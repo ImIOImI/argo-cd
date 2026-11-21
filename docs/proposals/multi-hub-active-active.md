@@ -32,6 +32,10 @@ replacement next to it and then turning the old one off.
    survivor with no failover step.
 3. Migrate hubs safely: bring up the new hub, prove it agrees with the old
    one, remove the old one.
+4. Share the work. Two hubs do about one hub's worth of reconciliation
+   between them, not two. Each hub refreshes a given app about half as
+   often, while together the app is refreshed as often as a single hub
+   would. (Added 2026-11-21; see C7.)
 
 ## Non-goals (for now)
 
@@ -200,6 +204,105 @@ Only the hub that ran an operation sends its notifications. For
 health-change notifications, a separate lease per app decides which hub
 sends.
 
+### C7. Shared refresh: refresh once, share the result
+
+Without C7, every hub refreshes every app on its own timer (default 3
+minutes). A refresh resolves the commit from Git, renders the manifests,
+diffs every resource against live state, computes health and writes the
+status. So two hubs do two hubs' worth of that work for one hub's worth of
+benefit. C7 has the hubs split it.
+
+**Publish.** After a full refresh, a hub publishes what it found:
+- **Lease annotations, kept small:** `refreshed-by`, `refreshed-at`, the
+  revision compared, the **definition fingerprint** (below) and a hash of
+  the result.
+- **The result itself:** sync status and revision, health, per-resource
+  status, conditions and summary. This goes into a separate object
+  (`<lease>-result`, gzipped) and is rewritten only when its hash changes.
+
+**Skip.** When a hub's *periodic* refresh comes due (the soft-expiry case,
+nothing else), it checks the app's Lease in a local watch cache. It skips
+the comparison if:
+- another hub published a refresh within this hub's refresh period;
+- of the same definition fingerprint;
+- at the revision currently pinned (C1);
+- and the watch is healthy.
+
+When it skips, it fetches the published result only if its hash differs
+from what this hub already shows. It applies the result to its own
+Application, rebuilds the resource tree from its live cluster watch (cheap,
+the same path upstream uses for status-only refreshes), and sets
+`reconciledAt` to now.
+
+**Always local, never skipped:** user-requested refreshes, refreshes caused
+by spec changes, event-driven refreshes, operations, and anything when the
+cache is unhealthy or stale.
+
+**How the work splits.** Each app is refreshed by whichever hub's timer comes
+due first. The other finds a fresh result and skips. For a single app, one
+hub may keep doing the work for as long as its timer stays ahead. Across
+many apps, with independent timers, the work splits about evenly, and each
+app is still refreshed once per period in total. It isn't strict per-app
+alternation. It's measured, not assumed (E11).
+
+**Failover is automatic.** A hub that stops publishing stops being fresh, so
+the other hubs refresh everything themselves at their normal rate. Nothing
+is reassigned and no step is needed.
+
+**The watch.** Each hub's controller keeps one informer per spoke on Leases
+in the coordination namespace with the multihub label. Only the "may I skip"
+hint reads the cache. Everything else (lock, claim, override, publish) still
+reads and writes through the API with compare-and-swap. A stale cache costs
+a duplicate refresh, never a wrong sync.
+
+**The definition fingerprint** is the first half of the divergence check
+(feature 1 in the 2026-11-21 discussion). It's a hash of the parts of the
+Application that decide what is deployed:
+- source(s), destination (resolved server and namespace) and project;
+- sync options, ignoreDifferences and managed namespace metadata;
+- but not auto-sync settings, labels or annotations.
+
+C7 only shares between hubs whose fingerprints match. Pausing on mismatch
+is C9.
+
+**Costs:**
+- One Lease write per refresh actually done, and the result object written
+  when the result changes.
+- The skip itself costs a map lookup.
+- **Event-driven refreshes aren't shared yet.** Both hubs still react to
+  resource changes. Sharing those is a follow-up, if measurements show it
+  matters.
+- The UI's per-resource diff on a skipping hub is as of its own last full
+  refresh. Status and tree are current.
+
+### C8. Removing an application requires every hub to agree
+
+When an ApplicationSet on one hub stops generating an Application (it's gone
+from Git), that hub doesn't delete it. Instead:
+
+1. **It records absence.** It writes `absent-by.<hub>` on the app's Lease.
+2. **Deletion waits for agreement.** The app is deleted only once every
+   member hub has recorded it absent. A Git error or template bug on one hub
+   therefore never deletes anything.
+3. **Coming back cancels it.** If the app reappears before then, that hub
+   clears its absence record.
+4. **Down hubs block deletion.** A hub that is down counts as not agreeing,
+   so deletions wait for it until an operator removes it from membership.
+
+Not built yet.
+
+### C9. Divergence and pauses (2026-11-21 discussion)
+
+- **Divergence:** hubs whose definition fingerprints differ pause syncing
+  for that app until they match. The pause message names the differing
+  fields.
+- **Global pause:** an operator can pause an app on every hub ahead of time.
+- **Single-hub pause:** an operator can pause one hub. A paused hub's
+  fingerprint doesn't count toward agreement, which gives a deliberate way
+  to let one hub's definition win while the other is fixed.
+
+Not built yet. C7 builds the fingerprint they all need.
+
 ## Spike plan
 
 1. **Baseline lab** (`hack/multi-hub-lab`): stock Argo on two hubs, one spoke.
@@ -225,7 +328,9 @@ sends.
    and the follow-up
    [research/2026-11-20-c3-gaps.md](../../research/2026-11-20-c3-gaps.md)
    (manual syncs, mid-rollout death, takeover in 3–5s after expiry).*
-5. **C5**: *done, see the C5 note above.* Then **C4, C6.**
+5. **C5**: *done, see the C5 note above.*
+6. **C7**, shared refresh, measured as E11: refreshes per hub with sharing
+   off and on, and with one hub killed. Then C8 and C9, then C4 and C6.
 
 Keep all coordination logic in a new `controller/multihub` package behind an
 interface, with small calls into the controller. That keeps the rebase onto
