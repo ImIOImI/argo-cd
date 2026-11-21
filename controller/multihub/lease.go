@@ -183,6 +183,8 @@ type Coordinator struct {
 	nsEnsured map[string]bool
 
 	reporter *Reporter
+
+	watches leaseWatches
 }
 
 // New returns nil when coordination is disabled. All methods are safe on a
