@@ -5,6 +5,8 @@ package controller
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -599,9 +601,60 @@ type multihubSharedResult struct {
 // gets deployed (C7/C9), with the destination resolved to server. Auto-sync
 // settings, labels and annotations are left out: they may differ per hub.
 func multihubFingerprint(app *appv1.Application, server string) string {
-	return ""
+	var syncOptions appv1.SyncOptions
+	var managedNS *appv1.ManagedNamespaceMetadata
+	if p := app.Spec.SyncPolicy; p != nil {
+		syncOptions, managedNS = p.SyncOptions, p.ManagedNamespaceMetadata
+	}
+	def := struct {
+		Source            *appv1.ApplicationSource          `json:"source,omitempty"`
+		Sources           appv1.ApplicationSources          `json:"sources,omitempty"`
+		Server            string                            `json:"server"`
+		Namespace         string                            `json:"namespace"`
+		Project           string                            `json:"project"`
+		SyncOptions       appv1.SyncOptions                 `json:"syncOptions,omitempty"`
+		ManagedNamespace  *appv1.ManagedNamespaceMetadata   `json:"managedNamespaceMetadata,omitempty"`
+		IgnoreDifferences []appv1.ResourceIgnoreDifferences `json:"ignoreDifferences,omitempty"`
+	}{app.Spec.Source, app.Spec.Sources, server, app.Spec.Destination.Namespace, app.Spec.Project, syncOptions, managedNS, app.Spec.IgnoreDifferences}
+	raw, _ := json.Marshal(def)
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:16])
+}
+
+// multihubShareable: C7 shares refreshes only where C1 can pin a revision
+// (single-source git apps), since a shared result is only valid at the
+// agreed revision.
+func (ctrl *ApplicationController) multihubShareable(app *appv1.Application) bool {
+	if !ctrl.multihub.Enabled() || app.Spec.HasMultipleSources() || app.Spec.Source == nil {
+		return false
+	}
+	src := app.Spec.GetSource()
+	return !src.IsHelm() && !src.IsOCI()
 }
 
 // multihubPublishRefresh publishes this hub's full refresh of app (C7).
+// Failures are logged at debug: the other hub then simply refreshes itself.
 func (ctrl *ApplicationController) multihubPublishRefresh(ctx context.Context, app *appv1.Application, result multihubSharedResult) {
+	if !ctrl.multihubShareable(app) || result.Sync.Revision == "" {
+		return
+	}
+	server, key, err := ctrl.multihubTarget(ctx, app)
+	if err == nil {
+		var raw []byte
+		if raw, err = json.Marshal(result); err == nil {
+			_, err = ctrl.multihub.PublishRefresh(ctx, server, key, result.Sync.Revision, multihubFingerprint(app, server), raw)
+		}
+	}
+	if err != nil {
+		log.WithFields(applog.GetAppLogFields(app)).WithError(err).Debug("multihub: failed to publish refresh")
+	}
+}
+
+func multihubHasErrorCondition(app *appv1.Application) bool {
+	for i := range app.Status.Conditions {
+		if app.Status.Conditions[i].IsError() {
+			return true
+		}
+	}
+	return false
 }

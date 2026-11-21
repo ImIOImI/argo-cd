@@ -2479,6 +2479,19 @@ func (ctrl *ApplicationController) processAppRefreshQueueItem() (processNext boo
 	patchDuration = ctrl.persistReconciliationStatus(ctx, origApp, &app.Status)
 	// This is a partly a duplicate of patch_ms, but more descriptive and allows to have measurement for the next step.
 	ts.AddCheckpoint("persist_app_status_ms")
+	// multihub (C7): share a clean comparison so another hub can skip its own.
+	if !multihubHasErrorCondition(app) {
+		ctrl.multihubPublishRefresh(ctx, app, multihubSharedResult{
+			Sync:               app.Status.Sync,
+			Health:             app.Status.Health,
+			Resources:          app.Status.Resources,
+			SourceType:         app.Status.SourceType,
+			SourceTypes:        app.Status.SourceTypes,
+			HasPreDeleteHooks:  compareResult.hasPreDeleteHooks,
+			HasPostDeleteHooks: compareResult.hasPostDeleteHooks,
+		})
+		ts.AddCheckpoint("multihub_publish_ms")
+	}
 	return processNext
 }
 
