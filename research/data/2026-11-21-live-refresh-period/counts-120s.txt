@@ -1,0 +1,4 @@
+=== period 120s (set from Git, no restart) 2026-11-21T22:30:38 -> 2026-11-21T22:40:40
+hub-a: full=29 shared=20 apps=12
+hub-b: full=22 shared=25 apps=12
+

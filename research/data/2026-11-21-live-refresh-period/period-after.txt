@@ -1,0 +1,2 @@
+hub-a timeout.reconciliation=120s owned-by=argocd-controller url=https://hub-a.lab.example
+hub-b timeout.reconciliation=120s owned-by=argocd-controller url=https://hub-b.lab.example

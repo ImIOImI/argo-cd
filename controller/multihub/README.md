@@ -47,6 +47,7 @@ set.
 | `ARGOCD_MULTIHUB_NAMESPACE` | `argocd-coordination` | Namespace on each destination cluster that holds the Leases (created on demand). |
 | `ARGOCD_MULTIHUB_LEASE_DURATION` | `60s` | A lease not renewed for this long can be taken over by another hub. Keep it well above 30s (the longest gap between an operation's passes). |
 | `ARGOCD_MULTIHUB_SETTLE_WINDOW` | `10s` | After another hub releases a lease, *auto*-sync on this hub waits this long so it re-compares against the finished state. User-started operations don't wait. |
+| *(argocd-cm)* `timeout.reconciliation` | startup value | With multihub on, the periodic refresh period is read **live** from argocd-cm (no restart). Manage that one key from Git with server-side apply to set every hub at once (see `hack/multi-hub-lab/bootstrap/`). |
 | `ARGOCD_MULTIHUB_SHARE_REFRESH` | `true` | Skip a periodic refresh that another hub just did and show its result (C7). |
 
 ### Telemetry
