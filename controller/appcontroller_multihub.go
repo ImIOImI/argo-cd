@@ -772,3 +772,11 @@ func (ctrl *ApplicationController) refreshPeriod() time.Duration {
 // multihubRefreshPeriodKey is the argocd-cm key upstream reads once at
 // startup (as ARGOCD_RECONCILIATION_TIMEOUT); multihub reads it live.
 const multihubRefreshPeriodKey = "timeout.reconciliation"
+
+// multihubResyncLoop re-checks every app once per refresh period, with the
+// period re-read each time, so lowering timeout.reconciliation live takes
+// effect (the app informer's own resync period is fixed at startup). Each
+// app is queued as upstream's informer resync queues it; apps not due are
+// dismissed by the usual expiry check.
+func (ctrl *ApplicationController) multihubResyncLoop(ctx context.Context) {
+}

@@ -1393,3 +1393,40 @@ func TestMultihubPeriodicRefreshUsesTheLivePeriod(t *testing.T) {
 		})
 	}
 }
+
+func TestMultihubResyncLoopFollowsTheLivePeriod(t *testing.T) {
+	ctrl := periodController(t, map[string]string{"timeout.reconciliation": "2m"}, true)
+	ctrl.statusRefreshJitter = 0
+	cms := ctrl.kubeClientset.CoreV1().ConfigMaps(test.FakeArgoCDNamespace)
+	var waits []time.Duration
+	ctrl.multihubWait = func(_ context.Context, d time.Duration) bool {
+		waits = append(waits, d)
+		switch len(waits) {
+		case 1:
+			return true
+		case 2:
+			assert.Equal(t, 1, ctrl.appRefreshQueue.Len(), "every app queued after the first wait")
+			cm, err := cms.Get(t.Context(), "argocd-cm", metav1.GetOptions{})
+			require.NoError(t, err)
+			cm.Data["timeout.reconciliation"] = "90s"
+			_, err = cms.Update(t.Context(), cm, metav1.UpdateOptions{})
+			require.NoError(t, err)
+			require.Eventually(t, func() bool { return ctrl.refreshPeriod() == 90*time.Second }, 10*time.Second, 20*time.Millisecond)
+			return true
+		default:
+			return false
+		}
+	}
+
+	done := make(chan struct{})
+	go func() { ctrl.multihubResyncLoop(t.Context()); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(20 * time.Second):
+		t.Fatal("loop didn't stop when the wait was cancelled")
+	}
+	require.Len(t, waits, 3)
+	assert.Equal(t, 2*time.Minute, waits[0])
+	assert.Equal(t, 2*time.Minute, waits[1])
+	assert.Equal(t, 90*time.Second, waits[2], "the new period, without a restart")
+}

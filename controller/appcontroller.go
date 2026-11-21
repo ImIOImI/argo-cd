@@ -176,6 +176,9 @@ type ApplicationController struct {
 	// multihubRequeueRefresh schedules a refresh of app after a delay; nil =
 	// requestAppRefresh. A field so tests can observe it.
 	multihubRequeueRefresh func(app *appv1.Application, after time.Duration)
+	// multihubWait waits d (or until ctx is done, returning false); nil =
+	// a timer. A field so tests can drive the resync loop.
+	multihubWait func(ctx context.Context, d time.Duration) bool
 }
 
 // NewApplicationController creates new instance of ApplicationController.
