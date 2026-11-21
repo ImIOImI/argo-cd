@@ -1139,3 +1139,154 @@ func TestMultihubRefreshDoesNotPublishForMultiSourceApps(t *testing.T) {
 	_, ok := multihub.RefreshRecordOf(lease)
 	assert.False(t, ok, "not shareable: no pin to agree on")
 }
+
+// skipFixture: hub-b's copy of a single-source app, last reconciled 10 min
+// ago (the test resync period is 1 min, so a periodic refresh is due), with
+// the pin at abc123. publish makes hub-a publish a refresh; generated counts
+// this hub's manifest generations, i.e. its own comparisons.
+type skipFixture struct {
+	*multihubPinFixture
+	app       *v1alpha1.Application
+	generated int
+}
+
+func newSkipFixture(t *testing.T) *skipFixture {
+	t.Helper()
+	app := pinTestApp()
+	old := metav1.NewTime(time.Now().Add(-10 * time.Minute))
+	app.Status.ReconciledAt = &old
+	app.Status.Sync = v1alpha1.SyncStatus{
+		Status:     v1alpha1.SyncStatusCodeOutOfSync,
+		Revision:   "old111",
+		ComparedTo: v1alpha1.ComparedTo{Source: *app.Spec.Source, Destination: app.Spec.Destination},
+	}
+	sf := &skipFixture{app: app}
+	sf.multihubPinFixture = shareRefreshFixture(t, app, func(*apiclient.ManifestRequest) { sf.generated++ })
+	return sf
+}
+
+func (sf *skipFixture) peerResult() multihubSharedResult {
+	return multihubSharedResult{
+		Sync: v1alpha1.SyncStatus{
+			Status:     v1alpha1.SyncStatusCodeSynced,
+			Revision:   "abc123",
+			ComparedTo: v1alpha1.ComparedTo{Source: *sf.app.Spec.Source, Destination: sf.app.Spec.Destination},
+		},
+		Health:    v1alpha1.AppHealthStatus{Status: "Healthy"},
+		Resources: []v1alpha1.ResourceStatus{{Kind: "ConfigMap", Name: "lab", Namespace: test.FakeDestNamespace, Status: v1alpha1.SyncStatusCodeSynced, Version: "v1"}},
+	}
+}
+
+func (sf *skipFixture) publish(t *testing.T, by *multihub.Coordinator, revision, fingerprint string, res multihubSharedResult) {
+	t.Helper()
+	server, key := sf.target(t)
+	raw, err := json.Marshal(res)
+	require.NoError(t, err)
+	_, err = by.PublishRefresh(t.Context(), server, key, revision, fingerprint, raw)
+	require.NoError(t, err)
+	// let hub-b's Lease watch see it
+	require.Eventually(t, func() bool {
+		v, ok := sf.ctrl.multihub.Cached(server, key)
+		return ok && v.HasRefresh && v.Refresh.Revision == revision && v.Refresh.Fingerprint == fingerprint
+	}, 10*time.Second, 20*time.Millisecond)
+	t.Cleanup(sf.ctrl.multihub.StopWatches)
+}
+
+func (sf *skipFixture) fingerprint(t *testing.T) string {
+	server, _ := sf.target(t)
+	return multihubFingerprint(sf.app, server)
+}
+
+func (sf *skipFixture) periodicRefresh(t *testing.T) *v1alpha1.Application {
+	t.Helper()
+	key, err := cache.MetaNamespaceKeyFunc(sf.app)
+	require.NoError(t, err)
+	sf.ctrl.appRefreshQueue.Add(key)
+	sf.ctrl.processAppRefreshQueueItem()
+	got, err := sf.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(sf.app.Namespace).Get(t.Context(), sf.app.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	return got
+}
+
+// C7: hub-a refreshed this app moments ago; hub-b's periodic refresh comes
+// due. hub-b shows hub-a's result and doesn't compare.
+func TestMultihubPeriodicRefreshUsesTheOtherHubsResult(t *testing.T) {
+	sf := newSkipFixture(t)
+	sf.ctrl.multihub = multihubWithSpoke(sf, true)
+	sf.publish(t, sf.hubA, "abc123", sf.fingerprint(t), sf.peerResult())
+	before := time.Now()
+
+	got := sf.periodicRefresh(t)
+
+	assert.Equal(t, 0, sf.generated, "no comparison on hub-b")
+	assert.Equal(t, v1alpha1.SyncStatusCodeSynced, got.Status.Sync.Status, "hub-a's result")
+	assert.Equal(t, "abc123", got.Status.Sync.Revision)
+	assert.Equal(t, "Healthy", string(got.Status.Health.Status))
+	assert.Equal(t, sf.peerResult().Resources, got.Status.Resources)
+	require.NotNil(t, got.Status.ReconciledAt)
+	assert.False(t, got.Status.ReconciledAt.Time.Before(before.Truncate(time.Second)), "reconciledAt moves on, so hub-b's next periodic refresh is a full period away")
+}
+
+func TestMultihubPeriodicRefreshComparesWhenTheSharedResultDoesNotApply(t *testing.T) {
+	cases := map[string]func(t *testing.T, sf *skipFixture){
+		"nothing published": func(t *testing.T, sf *skipFixture) {
+			server, key := sf.target(t)
+			_, err := sf.hubA.AgreeRevision(t.Context(), server, key, multihub.Candidate{Revision: "abc123", CommitTime: pinT1})
+			require.NoError(t, err)
+			require.Eventually(t, func() bool { _, ok := sf.ctrl.multihub.Cached(server, key); return ok }, 10*time.Second, 20*time.Millisecond)
+			t.Cleanup(sf.ctrl.multihub.StopWatches)
+		},
+		"another definition": func(t *testing.T, sf *skipFixture) {
+			sf.publish(t, sf.hubA, "abc123", "some-other-fingerprint", sf.peerResult())
+		},
+		"another revision than the pin": func(t *testing.T, sf *skipFixture) {
+			sf.publish(t, sf.hubA, "def456", sf.fingerprint(t), sf.peerResult())
+		},
+		"published by this hub": func(t *testing.T, sf *skipFixture) {
+			sf.publish(t, sf.ctrl.multihub, "abc123", sf.fingerprint(t), sf.peerResult())
+		},
+		"too old": func(t *testing.T, sf *skipFixture) {
+			sf.publish(t, sf.hubA, "abc123", sf.fingerprint(t), sf.peerResult())
+			server, key := sf.target(t)
+			leases := sf.spoke.CoordinationV1().Leases(multihub.DefaultNamespace)
+			lease, err := leases.Get(t.Context(), key.LeaseName(), metav1.GetOptions{})
+			require.NoError(t, err)
+			lease.Annotations[multihub.AnnotationRefreshedAt] = time.Now().Add(-2 * time.Minute).UTC().Format(time.RFC3339Nano)
+			_, err = leases.Update(t.Context(), lease, metav1.UpdateOptions{})
+			require.NoError(t, err)
+			require.Eventually(t, func() bool {
+				v, _ := sf.ctrl.multihub.Cached(server, key)
+				return time.Since(v.Refresh.At) > time.Minute
+			}, 10*time.Second, 20*time.Millisecond)
+		},
+		"a user asked for a refresh": func(t *testing.T, sf *skipFixture) {
+			sf.publish(t, sf.hubA, "abc123", sf.fingerprint(t), sf.peerResult())
+			sf.app.Annotations = map[string]string{v1alpha1.AnnotationKeyRefresh: string(v1alpha1.RefreshTypeNormal)}
+			require.NoError(t, sf.ctrl.appInformer.GetIndexer().Update(sf.app))
+		},
+	}
+	for name, setup := range cases {
+		t.Run(name, func(t *testing.T) {
+			sf := newSkipFixture(t)
+			sf.ctrl.multihub = multihubWithSpoke(sf, true)
+			setup(t, sf)
+			sf.periodicRefresh(t)
+			assert.Positive(t, sf.generated, "hub-b compares for itself")
+		})
+	}
+}
+
+func TestMultihubPeriodicRefreshComparesWhenSharingIsOff(t *testing.T) {
+	sf := newSkipFixture(t)
+	sf.ctrl.multihub = multihubWithSpoke(sf, false)
+	sf.publish(t, sf.hubA, "abc123", sf.fingerprint(t), sf.peerResult())
+	sf.periodicRefresh(t)
+	assert.Positive(t, sf.generated)
+}
+
+// multihubWithSpoke: hub-b's coordinator on the fixture's spoke, with shared
+// refresh on or off.
+func multihubWithSpoke(sf *skipFixture, share bool) *multihub.Coordinator {
+	clients := func(string) (kubernetes.Interface, error) { return sf.spoke, nil }
+	return multihub.New(multihub.Config{HubID: "hub-b", LeaseDuration: time.Minute, ShareRefresh: share, Telemetry: multihub.DefaultTelemetry()}, clients)
+}

@@ -658,3 +658,10 @@ func multihubHasErrorCondition(app *appv1.Application) bool {
 	}
 	return false
 }
+
+// multihubSkipRefresh applies another hub's fresh, published refresh of app
+// instead of comparing (C7). It reports whether it did; if not, the caller
+// refreshes normally.
+func (ctrl *ApplicationController) multihubSkipRefresh(ctx context.Context, app *appv1.Application) bool {
+	return false
+}

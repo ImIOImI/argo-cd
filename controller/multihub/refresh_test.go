@@ -122,3 +122,14 @@ func TestDisabledCoordinatorRefreshCallsAreNoops(t *testing.T) {
 	_, err = c.FetchResult(t.Context(), server, key, "h")
 	assert.ErrorIs(t, err, ErrResultMismatch)
 }
+
+func TestShareRefreshFromEnv(t *testing.T) {
+	assert.True(t, ConfigFromEnv().ShareRefresh, "on by default")
+	t.Setenv(EnvShareRefresh, "false")
+	assert.False(t, ConfigFromEnv().ShareRefresh)
+	t.Setenv(EnvHubID, "hub-x")
+	t.Setenv(EnvShareRefresh, "true")
+	assert.True(t, New(ConfigFromEnv(), nil).ShareRefresh())
+	var off *Coordinator
+	assert.False(t, off.ShareRefresh())
+}

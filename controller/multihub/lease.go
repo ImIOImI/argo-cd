@@ -37,6 +37,9 @@ const (
 	EnvNamespace     = "ARGOCD_MULTIHUB_NAMESPACE"
 	EnvLeaseDuration = "ARGOCD_MULTIHUB_LEASE_DURATION"
 	EnvSettleWindow  = "ARGOCD_MULTIHUB_SETTLE_WINDOW"
+	// Share refreshes between hubs (C7): skip a periodic refresh another hub
+	// just did. Default true.
+	EnvShareRefresh = "ARGOCD_MULTIHUB_SHARE_REFRESH"
 
 	DefaultNamespace     = "argocd-coordination"
 	DefaultLeaseDuration = 60 * time.Second
@@ -66,6 +69,9 @@ type Config struct {
 	// other hub's sync was still in flight is stale; the window lets this hub
 	// re-compare against the finished state first (research R0).
 	SettleWindow time.Duration
+	// ShareRefresh: skip a periodic refresh that another hub just did and
+	// show its result instead (C7).
+	ShareRefresh bool
 	// Telemetry controls logs, Kubernetes Events and metrics (telemetry.go).
 	Telemetry Telemetry
 }
@@ -87,6 +93,9 @@ func (c *Coordinator) Reporter() *Reporter {
 	}
 	return c.reporter
 }
+
+// ShareRefresh reports whether shared refresh (C7) is on.
+func (c *Coordinator) ShareRefresh() bool { return false }
 
 // Telemetry returns the telemetry settings (defaults when disabled).
 func (c *Coordinator) Telemetry() Telemetry {
