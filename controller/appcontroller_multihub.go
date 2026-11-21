@@ -698,6 +698,18 @@ func (ctrl *ApplicationController) multihubSkipRefresh(ctx context.Context, app 
 	app.Status.SourceType = res.SourceType
 	app.Status.SourceTypes = res.SourceTypes
 	app.Status.ControllerNamespace = ctrl.namespace
+	// The resource tree comes from this hub's own live watch of the spoke:
+	// rebuild it, as upstream's status-only refresh does.
+	if destCluster, err := argo.GetDestinationCluster(ctx, app.Spec.Destination, ctrl.db); err == nil {
+		managed := make([]*appv1.ResourceDiff, 0)
+		instance := app.InstanceName(ctrl.namespace)
+		if err := ctrl.cache.GetAppManagedResources(instance, &managed); err == nil {
+			if tree, err := ctrl.getResourceTree(destCluster, app, managed); err == nil {
+				app.Status.Summary = tree.GetSummary(app)
+				_ = ctrl.cache.SetAppResourcesTree(instance, tree)
+			}
+		}
+	}
 	now := metav1.Now()
 	ctrl.noteReconciled(app.QualifiedName(), now.Time)
 	app.Status.ReconciledAt = &now
@@ -725,5 +737,13 @@ func (ctrl *ApplicationController) multihubPeriodicRefreshOnly(app *appv1.Applic
 		return false
 	}
 	soft, hard := comparisonExpiry(ctrl.statusWithEffectiveReconciledAt(app), ctrl.statusRefreshTimeout, ctrl.statusHardRefreshTimeout)
-	return soft && !hard
+	if !soft || hard {
+		return false
+	}
+	// Peek, don't consume: a pending controller request (e.g. a resource
+	// changed) must still be refreshed locally.
+	ctrl.refreshRequestedAppsMutex.Lock()
+	_, pending := ctrl.refreshRequestedApps[app.QualifiedName()]
+	ctrl.refreshRequestedAppsMutex.Unlock()
+	return !pending
 }
