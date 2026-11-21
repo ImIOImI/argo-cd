@@ -987,6 +987,9 @@ func (ctrl *ApplicationController) Run(ctx context.Context, statusProcessors int
 	}
 
 	go ctrl.appInformer.Run(ctx.Done())
+	if ctrl.multihub.Enabled() {
+		go ctrl.multihubResyncLoop(ctx)
+	}
 	go ctrl.projInformer.Run(ctx.Done())
 
 	errors.CheckError(ctrl.stateCache.Init())

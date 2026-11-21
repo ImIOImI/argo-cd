@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -779,4 +780,41 @@ const multihubRefreshPeriodKey = "timeout.reconciliation"
 // app is queued as upstream's informer resync queues it; apps not due are
 // dismissed by the usual expiry check.
 func (ctrl *ApplicationController) multihubResyncLoop(ctx context.Context) {
+	wait := ctrl.multihubWait
+	if wait == nil {
+		wait = func(ctx context.Context, d time.Duration) bool {
+			t := time.NewTimer(d)
+			defer t.Stop()
+			select {
+			case <-ctx.Done():
+				return false
+			case <-t.C:
+				return true
+			}
+		}
+	}
+	for {
+		d := ctrl.refreshPeriod()
+		if d <= 0 {
+			d = time.Minute // periodic refresh disabled: just look again later
+		}
+		if !wait(ctx, d) {
+			return
+		}
+		if ctrl.refreshPeriod() <= 0 {
+			continue
+		}
+		for _, obj := range ctrl.appInformer.GetIndexer().List() {
+			app, ok := obj.(*appv1.Application)
+			if !ok {
+				continue
+			}
+			var delay *time.Duration
+			if ctrl.statusRefreshJitter > 0 {
+				j := time.Duration(float64(ctrl.statusRefreshJitter) * rand.Float64())
+				delay = &j
+			}
+			ctrl.requestAppRefresh(app.QualifiedName(), nil, delay)
+		}
+	}
 }
