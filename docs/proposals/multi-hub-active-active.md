@@ -329,8 +329,10 @@ Not built yet. C7 builds the fingerprint they all need.
    [research/2026-11-20-c3-gaps.md](../../research/2026-11-20-c3-gaps.md)
    (manual syncs, mid-rollout death, takeover in 3–5s after expiry).*
 5. **C5**: *done, see the C5 note above.*
-6. **C7**, shared refresh, measured as E11: refreshes per hub with sharing
-   off and on, and with one hub killed. Then C8 and C9, then C4 and C6.
+6. **C7**, shared refresh, measured as E11. *Status: done; each hub does
+   54–58% of its unshared refresh work, and failover needs no step. See
+   [research/2026-11-21-c7-shared-refresh.md](../../research/2026-11-21-c7-shared-refresh.md).*
+   Then C8 and C9, then C4 and C6.
 
 Keep all coordination logic in a new `controller/multihub` package behind an
 interface, with small calls into the controller. That keeps the rebase onto

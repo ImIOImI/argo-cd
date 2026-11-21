@@ -1,0 +1,6 @@
+hub-a automated syncs: 8 {'lab-1': 2, 'lab-10': 2, 'lab-3': 2, 'lab-9': 2}
+hub-b automated syncs: 14 {'lab-2': 2, 'lab-4': 2, 'lab-5': 2, 'lab-6': 2, 'lab-7': 2, 'lab-8': 2, 'lab-app': 2}
+hub-a      11 Synced
+hub-b      11 Synced
+21 21 21 21 21 21 21 21 21 21 21 
+

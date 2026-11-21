@@ -28,6 +28,11 @@ Implemented so far:
   **override** on the Lease before syncing. While it exists, every hub's
   automated sync (self-heal included) stands down. A user sync to the
   `targetRevision` on any hub clears it.
+- **C7, shared refresh:** after a full refresh a hub publishes its result
+  (record on the Lease, result in `<lease>-result`). A hub whose periodic
+  refresh comes due shows another hub's fresh result instead of comparing,
+  if both have the same app definition (fingerprint) and the result is at
+  the pinned revision. The check reads a local watch of the Leases.
 
 ## Configuration
 
@@ -42,6 +47,7 @@ set.
 | `ARGOCD_MULTIHUB_NAMESPACE` | `argocd-coordination` | Namespace on each destination cluster that holds the Leases (created on demand). |
 | `ARGOCD_MULTIHUB_LEASE_DURATION` | `60s` | A lease not renewed for this long can be taken over by another hub. Keep it well above 30s (the longest gap between an operation's passes). |
 | `ARGOCD_MULTIHUB_SETTLE_WINDOW` | `10s` | After another hub releases a lease, *auto*-sync on this hub waits this long so it re-compares against the finished state. User-started operations don't wait. |
+| `ARGOCD_MULTIHUB_SHARE_REFRESH` | `true` | Skip a periodic refresh that another hub just did and show its result (C7). |
 
 ### Telemetry
 
@@ -74,8 +80,8 @@ plus:
 | Field | Value |
 |---|---|
 | `multihub.hub` | this hub |
-| `multihub.path` | `auto-sync`, `operation`, `takeover` (claiming another hub's orphaned operation) or `override` (C5) |
-| `multihub.event` | `acquired`, `renewed`, `takeover`, `held`, `settling`, `released`, `lost`, `error`, `release_error`, `mirror_error`, `following`, `override_set`, `override_cleared`, `overridden` |
+| `multihub.path` | `auto-sync`, `operation`, `takeover` (claiming another hub's orphaned operation) `override` (C5) or `refresh` (C7) |
+| `multihub.event` | `acquired`, `renewed`, `takeover`, `held`, `settling`, `released`, `lost`, `error`, `release_error`, `mirror_error`, `following`, `override_set`, `override_cleared`, `overridden`, `shared` |
 | `multihub.holder` | hub holding the lease (or that just released it, for `settling`) |
 | `multihub.generation` | fencing token (`leaseTransitions`), when granted |
 | `multihub.reason` | free-text reason / error |
@@ -90,6 +96,7 @@ Messages keep upstream wording where one exists, e.g.
 | `renewed` | debug (info with `LOG_RENEWALS`) |
 | `held`, `settling`, `following`, `overridden` | per `LOG_DENIALS` |
 | `override_set`, `override_cleared` | info |
+| `shared` | debug (one per skipped refresh; the `Reconciliation completed` line also carries `multihub.shared=true`) |
 | `takeover`, `lost` | **warn** |
 | `error`, `release_error`, `mirror_error` | **warn** on change, debug for repeats (warn every time with `LOG_DENIALS=all`) |
 
@@ -132,7 +139,7 @@ Routine acquire/release has no Event. Upstream's `OperationStarted` /
 
 `argocd_multihub_lease_decisions_total{hub, path, event}`: a counter on the
 controller's existing `/metrics` endpoint. `path` is `auto-sync`,
-`operation`, `pin`, `takeover` or `override`. Useful queries:
+`operation`, `pin`, `takeover`, `override` or `refresh`. Useful queries:
 
 ```promql
 # takeovers, should be ~0 outside of hub failures
@@ -158,6 +165,9 @@ shows:
 - the override (`multihub.argoproj.io/override-revision`, `override-by`,
   `override-at`, `override-reason`), if a rollback is in force. Delete those
   annotations to clear it by hand;
+- the last full refresh (`multihub.argoproj.io/refreshed-by`, `-at`,
+  `-revision`, `-fingerprint`, `-result-hash`), with the result itself in
+  the ConfigMap `<lease name>-result` (gzipped);
 - the mirrored operation (`multihub.argoproj.io/operation`):
   `base64(gzip(header JSON + "\n" + OperationState JSON))`, where the header
   is `{"hub","generation","running"}`. Capped at 200KiB. To decode it:

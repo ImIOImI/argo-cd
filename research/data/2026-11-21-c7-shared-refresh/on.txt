@@ -1,0 +1,25 @@
+=== E11 ON  2026-11-21T18:28:35 -> 2026-11-21T18:38:35 (sharing on, 60s period, 11 apps)
+hub-a: full=34 shared=30 apps=11
+  lab-1      full=  3 shared=  3
+  lab-10     full=  3 shared=  3
+  lab-2      full=  2 shared=  3
+  lab-3      full=  2 shared=  3
+  lab-4      full=  3 shared=  2
+  lab-5      full=  2 shared=  4
+  lab-6      full=  4 shared=  2
+  lab-7      full=  3 shared=  4
+  lab-8      full=  4 shared=  1
+  lab-9      full=  3 shared=  3
+  lab-app    full=  5 shared=  2
+hub-b: full=38 shared=25 apps=11
+  lab-1      full=  4 shared=  3
+  lab-10     full=  3 shared=  2
+  lab-2      full=  4 shared=  1
+  lab-3      full=  5 shared=  1
+  lab-4      full=  3 shared=  2
+  lab-5      full=  4 shared=  2
+  lab-6      full=  4 shared=  2
+  lab-7      full=  4 shared=  1
+  lab-8      full=  2 shared=  4
+  lab-9      full=  3 shared=  3
+  lab-app    full=  2 shared=  4

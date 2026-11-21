@@ -1,0 +1,16 @@
+=== E11 KILL first minute 2026-11-21T18:52:30 -> 2026-11-21T18:53:30 (sharing on, hub-b stopped at 2026-11-21T18:52:30)
+hub-a: full=3 shared=0 apps=3
+=== E11 KILL rest 2026-11-21T18:53:30 -> 2026-11-21T19:02:30
+hub-a: full=63 shared=0 apps=11
+  lab-1      full=  6 shared=  0
+  lab-10     full=  6 shared=  0
+  lab-2      full=  6 shared=  0
+  lab-3      full=  5 shared=  0
+  lab-4      full=  6 shared=  0
+  lab-5      full=  6 shared=  0
+  lab-6      full=  5 shared=  0
+  lab-7      full=  6 shared=  0
+  lab-8      full=  6 shared=  0
+  lab-9      full=  5 shared=  0
+  lab-app    full=  6 shared=  0
+hub-b: full=0 shared=0 apps=0
