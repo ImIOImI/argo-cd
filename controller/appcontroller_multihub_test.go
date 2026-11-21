@@ -1033,3 +1033,109 @@ func TestMultihubPausedAutoSyncRaisesOneEvent(t *testing.T) {
 	assert.Equal(t, corev1.EventTypeNormal, events[0].Type)
 	assert.Contains(t, events[0].Message, "e264214")
 }
+
+func TestMultihubFingerprint(t *testing.T) {
+	base := newFakeApp()
+	fp := func(mutate func(*v1alpha1.Application), server string) string {
+		a := base.DeepCopy()
+		mutate(a)
+		return multihubFingerprint(a, server)
+	}
+	same := func(*v1alpha1.Application) {}
+	ref := fp(same, "https://spoke")
+	require.NotEmpty(t, ref)
+	assert.Len(t, ref, 32)
+
+	assert.Equal(t, ref, fp(same, "https://spoke"), "deterministic")
+	assert.Equal(t, ref, fp(func(a *v1alpha1.Application) { a.Spec.SyncPolicy.Automated = nil }, "https://spoke"), "auto-sync may differ per hub")
+	assert.Equal(t, ref, fp(func(a *v1alpha1.Application) {
+		a.Labels = map[string]string{"x": "y"}
+		a.Annotations = map[string]string{"p": "q"}
+	}, "https://spoke"), "metadata may differ")
+	assert.Equal(t, ref, fp(func(a *v1alpha1.Application) { a.Spec.Destination.Name = "prod-east" }, "https://spoke"), "destination compared as the resolved server")
+
+	assert.NotEqual(t, ref, fp(same, "https://other"), "different cluster")
+	assert.NotEqual(t, ref, fp(func(a *v1alpha1.Application) {
+		a.Spec.Source.Helm = &v1alpha1.ApplicationSourceHelm{Parameters: []v1alpha1.HelmParameter{{Name: "image.tag", Value: "1.5.0"}}}
+	}, "https://spoke"), "a parameter override")
+	assert.NotEqual(t, ref, fp(func(a *v1alpha1.Application) { a.Spec.Source.TargetRevision = "release" }, "https://spoke"))
+	assert.NotEqual(t, ref, fp(func(a *v1alpha1.Application) { a.Spec.Destination.Namespace = "other" }, "https://spoke"))
+	assert.NotEqual(t, ref, fp(func(a *v1alpha1.Application) { a.Spec.Project = "other" }, "https://spoke"))
+	assert.NotEqual(t, ref, fp(func(a *v1alpha1.Application) {
+		a.Spec.SyncPolicy.SyncOptions = v1alpha1.SyncOptions{"ServerSideApply=true"}
+	}, "https://spoke"))
+	assert.NotEqual(t, ref, fp(func(a *v1alpha1.Application) {
+		a.Spec.IgnoreDifferences = []v1alpha1.ResourceIgnoreDifferences{{Kind: "ConfigMap", JSONPointers: []string{"/data"}}}
+	}, "https://spoke"))
+}
+
+// shareRefreshFixture: hub-b's controller, the app pinned at "abc123", and a
+// refresh that compares at it.
+func shareRefreshFixture(t *testing.T, app *v1alpha1.Application, onGenerate func(*apiclient.ManifestRequest)) *multihubPinFixture {
+	t.Helper()
+	data := &fakeData{
+		apps: []runtime.Object{app, &defaultProj},
+		manifestResponses: []*apiclient.ManifestResponse{
+			{Manifests: []string{orphanTestConfigMap}, Namespace: test.FakeDestNamespace, Server: test.FakeClusterURL, Revision: "abc123"},
+			{Manifests: []string{orphanTestConfigMap}, Namespace: test.FakeDestNamespace, Server: test.FakeClusterURL, Revision: "abc123"},
+		},
+		managedLiveObjs:    map[kube.ResourceKey]*unstructured.Unstructured{},
+		onGenerateManifest: onGenerate,
+	}
+	f := newMultihubPinFixture(t, data, app)
+	f.lookup["abc123"] = pinT1
+	f.pinFromHubA(t, "abc123", pinT1)
+	return f
+}
+
+func (f *multihubPinFixture) refresh(t *testing.T, app *v1alpha1.Application, level CompareWith) {
+	t.Helper()
+	key, err := cache.MetaNamespaceKeyFunc(app)
+	require.NoError(t, err)
+	f.ctrl.requestAppRefresh(app.QualifiedName(), level.Pointer(), nil)
+	f.ctrl.appRefreshQueue.Add(key)
+	f.ctrl.processAppRefreshQueueItem()
+}
+
+func TestMultihubRefreshPublishesItsResult(t *testing.T) {
+	app := pinTestApp()
+	f := shareRefreshFixture(t, app, nil)
+
+	f.refresh(t, app, CompareWithLatest)
+
+	got, err := f.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(app.Namespace).Get(t.Context(), app.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	server, key := f.target(t)
+	lease, err := f.spoke.CoordinationV1().Leases(multihub.DefaultNamespace).Get(t.Context(), key.LeaseName(), metav1.GetOptions{})
+	require.NoError(t, err)
+	rec, ok := multihub.RefreshRecordOf(lease)
+	require.True(t, ok, "published")
+	assert.Equal(t, "hub-b", rec.By)
+	assert.Equal(t, "abc123", rec.Revision)
+	assert.Equal(t, multihubFingerprint(got, server), rec.Fingerprint)
+
+	raw, err := f.hubA.FetchResult(t.Context(), server, key, rec.ResultHash)
+	require.NoError(t, err)
+	var res multihubSharedResult
+	require.NoError(t, json.Unmarshal(raw, &res))
+	assert.Equal(t, got.Status.Sync.Status, res.Sync.Status)
+	assert.Equal(t, "abc123", res.Sync.Revision)
+	assert.Equal(t, got.Status.Health.Status, res.Health.Status)
+	assert.Equal(t, got.Status.Resources, res.Resources)
+}
+
+func TestMultihubRefreshDoesNotPublishForMultiSourceApps(t *testing.T) {
+	app := pinTestApp()
+	f := shareRefreshFixture(t, app, nil)
+	multi := app.DeepCopy()
+	multi.Spec.Sources = v1alpha1.ApplicationSources{*app.Spec.Source, *app.Spec.Source}
+	multi.Spec.Source = nil
+
+	f.ctrl.multihubPublishRefresh(t.Context(), multi, multihubSharedResult{})
+
+	_, key := f.target(t)
+	lease, err := f.spoke.CoordinationV1().Leases(multihub.DefaultNamespace).Get(t.Context(), key.LeaseName(), metav1.GetOptions{})
+	require.NoError(t, err)
+	_, ok := multihub.RefreshRecordOf(lease)
+	assert.False(t, ok, "not shareable: no pin to agree on")
+}

@@ -582,3 +582,26 @@ func (ctrl *ApplicationController) multihubOverridden(ctx context.Context, app *
 		o.Revision, o.Reason, o.By, orHEAD(app.Spec.GetSource().TargetRevision)))
 	return true
 }
+
+// multihubSharedResult is what a hub publishes after a full refresh (C7):
+// everything another hub needs to show the same status without comparing.
+type multihubSharedResult struct {
+	Sync               appv1.SyncStatus              `json:"sync"`
+	Health             appv1.AppHealthStatus         `json:"health"`
+	Resources          []appv1.ResourceStatus        `json:"resources,omitempty"`
+	SourceType         appv1.ApplicationSourceType   `json:"sourceType,omitempty"`
+	SourceTypes        []appv1.ApplicationSourceType `json:"sourceTypes,omitempty"`
+	HasPreDeleteHooks  bool                          `json:"hasPreDeleteHooks,omitempty"`
+	HasPostDeleteHooks bool                          `json:"hasPostDeleteHooks,omitempty"`
+}
+
+// multihubFingerprint hashes the parts of app's definition that decide what
+// gets deployed (C7/C9), with the destination resolved to server. Auto-sync
+// settings, labels and annotations are left out: they may differ per hub.
+func multihubFingerprint(app *appv1.Application, server string) string {
+	return ""
+}
+
+// multihubPublishRefresh publishes this hub's full refresh of app (C7).
+func (ctrl *ApplicationController) multihubPublishRefresh(ctx context.Context, app *appv1.Application, result multihubSharedResult) {
+}
