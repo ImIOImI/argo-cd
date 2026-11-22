@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -1584,4 +1585,100 @@ func TestMultihubHeartbeatLoopRepeats(t *testing.T) {
 	_, ok := hubRecordOn(t, f, "hub-b")
 	assert.True(t, ok, "published before the first wait")
 	assert.Equal(t, []time.Duration{multihubHeartbeatInterval, multihubHeartbeatInterval, multihubHeartbeatInterval}, waits)
+}
+
+// withMembership makes hub-b's controller follow a HubMembership with the
+// given members and waits until it's in force.
+func withMembership(t *testing.T, f *multihubPinFixture, members string) {
+	t.Helper()
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(apiruntime.NewScheme(),
+		map[schema.GroupVersionResource]string{multihub.HubMembershipGVR: "HubMembershipList"}, hubMembership(t, members))
+	f.ctrl.MultihubWatchMembership(dyn)
+	t.Cleanup(func() { f.ctrl.multihubMembership.Stop() })
+	require.Eventually(t, func() bool { _, ok := f.ctrl.multihubMembership.Current(); return ok }, 10*time.Second, 20*time.Millisecond)
+}
+
+const (
+	hubBWatching = `
+    - {id: hub-a, state: active}
+    - {id: hub-b, state: watching}
+`
+	hubBNotAMember = `
+    - {id: hub-a, state: active}
+`
+)
+
+func TestMultihubWatchingOrNonMemberHubDoesNotAutoSync(t *testing.T) {
+	for name, members := range map[string]string{"watching": hubBWatching, "not a member": hubBNotAMember} {
+		t.Run(name, func(t *testing.T) {
+			app := newFakeApp() // automated sync policy, OutOfSync below
+			f := newMultihubPinFixture(t, &fakeData{
+				apps: []runtime.Object{app, &defaultProj},
+				manifestResponses: []*apiclient.ManifestResponse{{
+					Manifests: []string{orphanTestConfigMap}, Namespace: test.FakeDestNamespace, Server: test.FakeClusterURL, Revision: "abc123",
+				}},
+				managedLiveObjs: map[kube.ResourceKey]*unstructured.Unstructured{},
+			}, app)
+			f.lookup["abc123"] = pinT1
+			withMembership(t, f, members)
+
+			f.refresh(t, app, CompareWithLatest)
+
+			got, err := f.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(app.Namespace).Get(t.Context(), app.Name, metav1.GetOptions{})
+			require.NoError(t, err)
+			assert.Equal(t, v1alpha1.SyncStatusCodeOutOfSync, got.Status.Sync.Status, "still refreshes and shows status")
+			assert.Nil(t, got.Operation, "starts no sync")
+		})
+	}
+}
+
+func TestMultihubWatchingOrNonMemberHubRefusesNewOperations(t *testing.T) {
+	for name, tc := range map[string]struct{ members, msg string }{
+		"watching":     {hubBWatching, "watching"},
+		"not a member": {hubBNotAMember, "not a member"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f, app := operationFixture(t)
+			app.Operation.InitiatedBy = v1alpha1.OperationInitiator{Username: "alice"}
+			withMembership(t, f, tc.members)
+
+			f.ctrl.processRequestedAppOperation(app)
+
+			got, err := f.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(app.Namespace).Get(t.Context(), app.Name, metav1.GetOptions{})
+			require.NoError(t, err)
+			require.NotNil(t, got.Status.OperationState)
+			assert.Equal(t, synccommon.OperationError, got.Status.OperationState.Phase)
+			assert.Contains(t, got.Status.OperationState.Message, tc.msg)
+			_, ok := f.override(t)
+			assert.False(t, ok, "no side effects either (e.g. no rollback override)")
+		})
+	}
+}
+
+// Removed from membership mid-sync: the running sync finishes (the drain).
+func TestMultihubNonMemberFinishesARunningOperation(t *testing.T) {
+	f, app := operationFixture(t)
+	app.Status.OperationState = &v1alpha1.OperationState{Operation: *app.Operation, Phase: synccommon.OperationRunning, StartedAt: metav1.Now()}
+	withMembership(t, f, hubBNotAMember)
+
+	f.ctrl.processRequestedAppOperation(app)
+
+	got, err := f.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(app.Namespace).Get(t.Context(), app.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, synccommon.OperationSucceeded, got.Status.OperationState.Phase)
+}
+
+func TestMultihubWatchingHubNeitherClaimsNorPublishes(t *testing.T) {
+	app := pinTestApp()
+	f, _ := orphanFixture(t, app, &fakeData{apps: []runtime.Object{app, &defaultProj}})
+	withMembership(t, f, hubBWatching)
+	assert.False(t, f.ctrl.multihubClaimOrphan(t.Context(), app), "doesn't take over another hub's sync")
+
+	other := pinTestApp()
+	other.Name = "other"
+	f.ctrl.multihubPublishRefresh(t.Context(), other, multihubSharedResult{Sync: v1alpha1.SyncStatus{Revision: "abc123"}})
+	_, key, err := f.ctrl.multihubTarget(t.Context(), other)
+	require.NoError(t, err)
+	_, err = f.spoke.CoordinationV1().Leases(multihub.DefaultNamespace).Get(t.Context(), key.LeaseName(), metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "publishes no shared refresh")
 }

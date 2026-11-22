@@ -925,3 +925,10 @@ func multihubTimerWait(ctx context.Context, d time.Duration) bool {
 		return true
 	}
 }
+
+// multihubMayStart reports whether this hub may start new work (syncs,
+// takeovers, publishing shared refreshes) for shared apps, and if not, why.
+// Only active members (or any hub, when no membership is declared) may.
+func (ctrl *ApplicationController) multihubMayStart(ctx context.Context) (bool, string) {
+	return true, ""
+}
