@@ -217,9 +217,35 @@ func (m Membership) Resolve(records []HubRecord, now time.Time) (Resolved, error
 			r.Active = append(r.Active, rec.ID)
 		}
 	}
+	// Hubs declared by id count even without a record: strictest reading.
+	for _, e := range m.Members {
+		if e.ID == "" {
+			continue
+		}
+		if _, seen := r.States[e.ID]; seen {
+			continue
+		}
+		if m.ForgetAfter > 0 && recordedAndForgotten(records, e.ID, now, m.ForgetAfter) {
+			continue
+		}
+		r.States[e.ID] = e.State
+		if e.State == StateActive {
+			r.Active = append(r.Active, e.ID)
+		}
+	}
 	sort.Strings(r.Active)
 	r.Quorum = QuorumFor(len(r.Active))
 	return r, nil
+}
+
+// recordedAndForgotten: id has a record, silent for longer than forget.
+func recordedAndForgotten(records []HubRecord, id string, now time.Time, forget time.Duration) bool {
+	for _, rec := range records {
+		if rec.ID == id {
+			return now.Sub(rec.LastSeen) > forget
+		}
+	}
+	return false
 }
 
 // QuorumFor is how many of n active members must agree: all of them with
