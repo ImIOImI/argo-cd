@@ -182,9 +182,9 @@ type ApplicationController struct {
 	// multihubMembership follows the HubMembership (nil until
 	// MultihubWatchMembership).
 	multihubMembership *multihub.MembershipWatcher
-	// multihubLastOwnState is the last own state resolved without conflict.
-	multihubLastOwnState *multihub.MemberState
-	multihubLastMember   bool
+	// multihubLastOwn is the last own state resolved without conflict.
+	multihubOwnMu   sync.Mutex
+	multihubLastOwn *multihubOwn
 }
 
 // NewApplicationController creates new instance of ApplicationController.

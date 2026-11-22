@@ -824,13 +824,44 @@ func (ctrl *ApplicationController) multihubResyncLoop(ctx context.Context) {
 // controller's namespace (C8/C9 groundwork). Called by the command with a
 // dynamic client; a no-op when multihub is off.
 func (ctrl *ApplicationController) MultihubWatchMembership(client dynamic.Interface) {
+	if !ctrl.multihub.Enabled() || client == nil {
+		return
+	}
+	ctrl.multihubMembership = multihub.NewMembershipWatcher(client, ctrl.namespace)
 }
+
+type multihubOwn struct {
+	state  multihub.MemberState
+	member bool
+}
+
+// multihubSelfServer is how a hub registers its own cluster.
+const multihubSelfServer = "https://kubernetes.default.svc"
 
 // multihubOwnState is this hub's state under the declared membership.
 // declared is false when no HubMembership exists: today's behavior, every
 // hub acts. member is false when this hub matches no entry. A membership
 // that can't be resolved for this hub (conflicting selectors) keeps the
-// state it had before.
+// state it had before, or watching if it never had one.
 func (ctrl *ApplicationController) multihubOwnState(ctx context.Context) (state multihub.MemberState, member, declared bool) {
-	return multihub.StateActive, true, false
+	m, ok := ctrl.multihubMembership.Current()
+	if !ok {
+		return multihub.StateActive, true, false
+	}
+	var lbls map[string]string
+	if self, err := ctrl.db.GetCluster(ctx, multihubSelfServer); err == nil {
+		lbls = self.Labels
+	}
+	st, member, err := m.StateOf(ctrl.multihub.HubID(), lbls)
+	ctrl.multihubOwnMu.Lock()
+	defer ctrl.multihubOwnMu.Unlock()
+	if err != nil {
+		log.WithError(err).Warn("multihub: can't resolve this hub's membership; keeping its previous state")
+		if ctrl.multihubLastOwn != nil {
+			return ctrl.multihubLastOwn.state, ctrl.multihubLastOwn.member, true
+		}
+		return multihub.StateWatching, true, true
+	}
+	ctrl.multihubLastOwn = &multihubOwn{state: st, member: member}
+	return st, member, true
 }

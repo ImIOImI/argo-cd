@@ -13,6 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -239,6 +240,8 @@ func NewCommand() *cobra.Command {
 				hydratorEnabled,
 			)
 			errors.CheckError(err)
+			// multihub: follow the HubMembership (no-op when multihub is off).
+			appController.MultihubWatchMembership(dynamic.NewForConfigOrDie(config))
 			cacheutil.CollectMetrics(redisClient, appController.GetMetricsServer(), nil)
 
 			stats.RegisterStackDumper()
