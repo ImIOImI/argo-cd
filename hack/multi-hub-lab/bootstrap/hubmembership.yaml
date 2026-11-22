@@ -8,7 +8,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
-  refreshPeriod: 120s
+  refreshPeriod: 90s
   forgetAfter: 0
   members:
     - selector:
