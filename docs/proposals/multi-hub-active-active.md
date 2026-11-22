@@ -291,41 +291,86 @@ from Git), that hub doesn't delete it. Instead:
 
 Not built yet.
 
-### Membership and voting (decided 2026-11-21)
+### Membership and voting (decided 2026-11-21/22)
 
-C8 and C9 need to know which hubs exist, so they need an explicit **hub
-list**. It's a shared `argocd-cm` key managed from Git like the refresh
-period, e.g. `multihub.hubs: "hub-a,hub-b,hub-c"`. Adding or retiring a hub
-is a one-line change.
+**Principle: slow and accurate over fast and wrong.** Every change to what's
+deployed needs a quorum of active hubs to see it. Until then, the status quo
+holds: disagreement only delays, never acts.
 
-**Voting rule:**
-- **1–2 hubs listed:** unanimous. Every listed hub must agree.
-- **3 or more listed:** majority of the listed hubs (2 of 3, 3 of 4, 3 of 5).
+| Change | Before quorum (status quo) | At quorum |
+|---|---|---|
+| An app appears in Git | each hub that sees it creates its copy, but the copy doesn't sync | it syncs normally |
+| An app is removed from Git | each hub that sees it records "absent"; nothing is deleted | it's deleted |
+| An app's definition changes | the spoke keeps the last agreed state | the new definition proceeds; hubs still on the old one pause their copy until they catch up |
 
-**Details:**
-- **Counted against the list, not against the live hubs.** A listed hub
-  that is down counts as not agreeing. With three listed and one down, the
-  other two are still a majority. With two listed and one down, nothing that
-  needs agreement proceeds until it's back or removed from the list.
-- **No majority means pause.** That covers ties with an even number of hubs
-  and splits with no winner.
-- **An outvoted hub stands down for that app:**
-  - **Divergence (C9):** its copy of the app is paused, with a condition
-    naming the hubs it disagrees with, while the majority keeps syncing.
-  - **Removal (C8):** a deletion agreed by a majority leaves a "removed"
-    record on the app's Lease. A hub that still has the app treats that as
-    being outvoted and pauses it, so it can't redeploy what was deleted.
+**Quorum:**
+- With 1–2 active hubs listed: unanimous.
+- With 3 or more: a majority of the active hubs.
+- No majority (a tie or a split) means the status quo.
+- `watching` hubs don't vote.
+- A listed hub that's silent counts as not yet agreeing, until
+  `members.forgetAfter`.
 
-### C7b. Balanced sharing for three or more hubs
+**Membership ambiguity is resolved the same way.** A hub counts votes against
+the **strictest** membership it can see: the largest member set it knows of,
+from the file plus the records other hubs publish. So a membership change
+still propagating can only delay a change, never let one through early.
+There is no membership version number.
 
-Three-hub measurement (research/2026-11-22-three-hubs.md): C7's "skip if
-another hub just refreshed" does one hub's worth of work in total, but lets
-the hub that leads keep it (one did ~76%). The fix needs the hub list:
-- **Each (app, period) has a preferred hub,** from a deterministic hash
-  over the listed hubs that are live.
-- **The preferred hub refreshes. The others skip** while its result is
-  fresh, and refresh themselves only if it's late (more than about 1.5
-  periods).
+**API: a shared ConfigMap, identical on every hub, synced from Git by each
+hub's root app:**
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-multihub-cm
+  namespace: argocd
+  labels: {app.kubernetes.io/part-of: argocd}
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+data:
+  refresh.period: 120s          # live; falls back to argocd-cm timeout.reconciliation, then startup
+  members.forgetAfter: 7d       # m/h/d, combinable (1d12h); "0" = never forget a silent hub
+  members: |
+    - selector:
+        matchLabels: {multihub.argoproj.io/role: hub}
+      state: active
+    - id: hub-c                 # an id entry overrides a selector match
+      state: watching
+```
+
+**Per hub, not shared: its self-registration.** A hub's labels are the
+labels on its own cluster Secret (`server: https://kubernetes.default.svc`),
+applied per hub at bootstrap. These are the same labels ApplicationSet
+cluster generators match.
+
+**Rules:**
+- **States:** `active` votes and does the work. `watching` reports its
+  definition fingerprint but doesn't sync, share or vote. Pausing a hub
+  means setting it to `watching` in Git.
+- **A hub that matches no entry isn't a member.** If it was one, it drains
+  itself: it finishes running syncs, starts none, releases its locks, stops
+  publishing, then leaves shared apps alone. Draining is behavior, not a
+  declared state.
+- **Bad configuration** (conflicting matches, invalid YAML, an unknown
+  state) keeps the last valid membership and warns.
+- **No `argocd-multihub-cm` at all** keeps today's behavior.
+- **Hub records.** Each hub publishes a record on every spoke: id, labels,
+  last seen. Membership is resolved from those records, so a hub that dies
+  still counts until forgotten.
+
+**Settling disagreement quickly.**
+- When an active hub's vote on an app changes and this hub disagrees, this
+  hub re-runs whatever **generates** the app (its ApplicationSet or parent
+  app, not only the Application).
+- It retries with Fibonacci backoff (1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89s),
+  then returns to the regular period.
+- The backoff resets only on agreement, so a flapping vote can't keep it at
+  1s.
+- A silent hub triggers nothing.
+- Webhooks to every hub remain the primary fast path; this covers missed
+  webhooks and lagging Git caches.
 
 ### C9. Divergence and pauses (2026-11-21 discussion)
 
