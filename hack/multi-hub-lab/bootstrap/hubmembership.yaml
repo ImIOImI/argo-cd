@@ -15,3 +15,5 @@ spec:
         matchLabels:
           multihub.argoproj.io/role: hub
       state: active
+    - id: hub-c
+      state: watching
