@@ -2,7 +2,7 @@
 # Shows each hub's refresh period: the argocd-cm value, the field manager
 # that owns it, and the hub-specific url (to show it is untouched).
 set -uo pipefail
-for h in hub-a hub-b; do
+for h in $("$(dirname "$0")"/lab-hubs.sh); do
   kubectl --context "kind-$h" -n argocd get cm argocd-cm -o json --show-managed-fields | python3 -c '
 import json, sys
 cm = json.load(sys.stdin); h = sys.argv[1]

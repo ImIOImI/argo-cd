@@ -11,7 +11,7 @@ set -euo pipefail
 dir="${1:?usage: $0 DIR}"
 SINCE="${SINCE:-60m}"
 mkdir -p "$dir"
-for h in hub-a hub-b; do
+for h in $("$(dirname "$0")"/lab-hubs.sh); do
   kubectl --context "kind-$h" -n argocd logs statefulset/argocd-application-controller --since="$SINCE" 2>/dev/null \
     | grep -E '"msg":"(Initiated automated sync|Skipping auto-sync|Initialized new operation|multihub|Waiting to start operation|Operation stopped)' \
     > "$dir/$h-controller-autosync.jsonl" || true

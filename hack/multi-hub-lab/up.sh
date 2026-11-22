@@ -122,13 +122,17 @@ spec:
 EOF
 }
 
-create_cluster spoke
-create_cluster hub-a
-create_cluster hub-b
-install_argocd hub-a "$HUB_A_RECONCILE"
-install_argocd hub-b "$HUB_B_RECONCILE"
-spoke_credentials
-register_spoke_and_app hub-a
-register_spoke_and_app hub-b
+main() {
+  create_cluster spoke
+  create_cluster hub-a
+  create_cluster hub-b
+  install_argocd hub-a "$HUB_A_RECONCILE"
+  install_argocd hub-b "$HUB_B_RECONCILE"
+  spoke_credentials
+  register_spoke_and_app hub-a
+  register_spoke_and_app hub-b
+  log "done. Watch with ./observe.sh, then push a change with ./bump.sh"
+}
 
-log "done. Watch with ./observe.sh, then push a change with ./bump.sh"
+# Sourced by add-hub.sh for the functions only.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then main; fi

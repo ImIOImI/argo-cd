@@ -3,7 +3,7 @@
 # it, multihub Info, message), the mirrored operation on the spoke's Lease
 # (C3), and the hook Jobs on the spoke (one per hook run).
 set -u
-for h in hub-a hub-b; do
+for h in $("$(dirname "$0")"/lab-hubs.sh); do
   kubectl --context "kind-$h" -n argocd get application lab-app -o json 2>/dev/null | python3 -c '
 import json, sys
 h = sys.argv[1]

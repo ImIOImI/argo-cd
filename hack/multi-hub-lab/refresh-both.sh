@@ -5,7 +5,7 @@
 # the R0 situation, on demand.
 #   ./bump.sh && ./refresh-both.sh
 set -euo pipefail
-for h in hub-a hub-b; do
+for h in $("$(dirname "$0")"/lab-hubs.sh); do
   kubectl --context "kind-$h" -n argocd annotate application lab-app \
     argocd.argoproj.io/refresh=hard --overwrite &
 done

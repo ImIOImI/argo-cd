@@ -7,7 +7,7 @@
 #   ./apps.sh 0
 set -euo pipefail
 n="${1:?usage: $0 N}"
-for h in hub-a hub-b; do
+for h in $("$(dirname "$0")"/lab-hubs.sh); do
   ctx="kind-$h"
   existing=$(kubectl --context "$ctx" -n argocd get applications -o name | grep -E '/lab-[0-9]+$' || true)
   if [ "$n" = 0 ]; then

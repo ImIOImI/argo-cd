@@ -30,7 +30,7 @@ COPY argocd /usr/local/bin/argocd
 EOF
 docker build -q -t "$tag" "$build"
 
-for hub in hub-a hub-b; do
+for hub in $("$(dirname "$0")"/lab-hubs.sh); do
   ctx="kind-$hub"
   echo "== $hub: load $tag"
   kind load docker-image "$tag" --name "$hub"

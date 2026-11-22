@@ -4,7 +4,7 @@
 #   ./reconcile.sh 60s
 set -euo pipefail
 d="${1:?usage: $0 DURATION}"
-for h in ${HUBS:-hub-a hub-b}; do
+for h in ${HUBS:-$("$(dirname "$0")"/lab-hubs.sh)}; do
   ctx="kind-$h"
   kubectl --context "$ctx" -n argocd patch configmap argocd-cm --type merge -p "{\"data\":{\"timeout.reconciliation\":\"$d\"}}" >/dev/null
   kubectl --context "$ctx" -n argocd rollout restart statefulset/argocd-application-controller >/dev/null

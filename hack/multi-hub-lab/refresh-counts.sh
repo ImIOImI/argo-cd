@@ -8,7 +8,7 @@
 #   SINCE=40m ./refresh-counts.sh 2026-11-21T10:00:00 2026-11-21T10:15:00
 set -uo pipefail
 after="${1:?usage: $0 AFTER BEFORE}" before="${2:?usage: $0 AFTER BEFORE}"
-for h in hub-a hub-b; do
+for h in $("$(dirname "$0")"/lab-hubs.sh); do
   kubectl --context "kind-$h" -n argocd logs statefulset/argocd-application-controller --since="${SINCE:-60m}" 2>/dev/null \
     | grep '"Reconciliation completed"' \
     | python3 -c '

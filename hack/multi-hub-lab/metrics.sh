@@ -3,7 +3,7 @@
 # (port-forwards the controller's metrics port 8082 for a moment).
 set -uo pipefail
 port=18082
-for h in hub-a hub-b; do
+for h in $("$(dirname "$0")"/lab-hubs.sh); do
   echo "== $h"
   kubectl --context "kind-$h" -n argocd port-forward statefulset/argocd-application-controller "$port:8082" >/dev/null 2>&1 &
   pf=$!

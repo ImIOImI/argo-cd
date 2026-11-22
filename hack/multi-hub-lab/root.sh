@@ -5,6 +5,6 @@
 #   ./root.sh
 set -euo pipefail
 cd "$(dirname "$0")"
-for h in ${HUBS:-hub-a hub-b}; do
+for h in ${HUBS:-$("$(dirname "$0")"/lab-hubs.sh)}; do
   kubectl --context "kind-$h" apply -f bootstrap/root.yaml
 done

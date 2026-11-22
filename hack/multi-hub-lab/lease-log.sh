@@ -6,7 +6,7 @@
 set -uo pipefail
 SINCE="${SINCE:-10m}"
 AFTER="${AFTER:-}"
-for h in hub-a hub-b; do
+for h in $("$(dirname "$0")"/lab-hubs.sh); do
   echo "== $h"
   kubectl --context "kind-$h" -n argocd logs statefulset/argocd-application-controller --since="$SINCE" 2>/dev/null \
     | grep '"multihub.event"' \

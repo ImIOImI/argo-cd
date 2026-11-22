@@ -9,7 +9,7 @@ raw = sys.stdin.read().strip()
 d = json.loads(raw) if raw else {}
 pin = {k.split("/")[1]: v for k, v in d.items() if "pinned" in k}
 print("pin", pin if pin else "(none)")'
-for h in hub-a hub-b; do
+for h in $("$(dirname "$0")"/lab-hubs.sh); do
   kubectl --context "kind-$h" -n argocd get application lab-app \
     -o jsonpath="$h {.status.sync.status} {.status.sync.revision}{'\n'}"
 done

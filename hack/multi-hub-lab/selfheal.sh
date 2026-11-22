@@ -9,7 +9,7 @@ case "${1:-}" in
   on) v=true ;; off) v=false ;;
   *) echo "usage: $0 on|off" >&2; exit 2 ;;
 esac
-for h in ${HUBS:-hub-a hub-b}; do
+for h in ${HUBS:-$("$(dirname "$0")"/lab-hubs.sh)}; do
   kubectl --context "kind-$h" -n argocd patch application lab-app --type merge \
     -p "{\"spec\":{\"syncPolicy\":{\"automated\":{\"prune\":true,\"selfHeal\":${v}}}}}"
 done

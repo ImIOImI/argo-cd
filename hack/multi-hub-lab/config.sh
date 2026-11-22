@@ -2,7 +2,7 @@
 # Prints each hub's effective multihub configuration, from the controller's
 # "multihub coordination enabled" startup log line.
 set -u
-for h in hub-a hub-b; do
+for h in $("$(dirname "$0")"/lab-hubs.sh); do
   line=$(kubectl --context "kind-$h" -n argocd logs statefulset/argocd-application-controller 2>/dev/null \
     | grep -m1 'multihub coordination enabled')
   if [ -z "$line" ]; then
