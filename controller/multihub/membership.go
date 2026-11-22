@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"sort"
 	"strconv"
 	"time"
 
@@ -71,14 +72,21 @@ func ParseMembership(obj *unstructured.Unstructured) (Membership, error) {
 	} else if _, set := spec["refreshPeriod"]; set {
 		return Membership{}, errors.New("hubmembership: refreshPeriod must be a duration string")
 	}
-	if v, ok := spec["forgetAfter"].(string); ok {
+	switch v := spec["forgetAfter"].(type) {
+	case nil:
+	case string:
 		d, err := ParseDuration(v)
 		if err != nil {
 			return Membership{}, fmt.Errorf("hubmembership: forgetAfter: %w", err)
 		}
 		m.ForgetAfter = d
-	} else if _, set := spec["forgetAfter"]; set {
-		return Membership{}, errors.New("hubmembership: forgetAfter must be a duration string")
+	case int64, float64, int:
+		// `forgetAfter: 0` unquoted is a YAML number; only 0 is allowed so.
+		if fmt.Sprint(v) != "0" {
+			return Membership{}, errors.New("hubmembership: forgetAfter must be 0 or a duration string (e.g. 7d)")
+		}
+	default:
+		return Membership{}, errors.New("hubmembership: forgetAfter must be 0 or a duration string (e.g. 7d)")
 	}
 	raw, _ := spec["members"].([]any)
 	if len(raw) == 0 {
@@ -171,15 +179,54 @@ type Resolved struct {
 // StateOf is the declared state of the hub with id and labels; ok is false
 // if no entry matches it (not a member).
 func (m Membership) StateOf(id string, lbls map[string]string) (state MemberState, ok bool, err error) {
-	return "", false, nil
+	for _, e := range m.Members {
+		if e.ID != "" && e.ID == id {
+			return e.State, true, nil // an id entry overrides selectors
+		}
+	}
+	set := labels.Set(lbls)
+	for _, e := range m.Members {
+		if e.Selector == nil || !e.Selector.Matches(set) {
+			continue
+		}
+		if ok && e.State != state {
+			return "", false, fmt.Errorf("hubmembership: hub %s matches selectors with different states (%s and %s)", id, state, e.State)
+		}
+		state, ok = e.State, true
+	}
+	return state, ok, nil
 }
 
 // Resolve resolves the membership against records, forgetting members
 // silent for longer than ForgetAfter (if set) as of now.
 func (m Membership) Resolve(records []HubRecord, now time.Time) (Resolved, error) {
-	return Resolved{}, nil
+	r := Resolved{States: map[string]MemberState{}}
+	for _, rec := range records {
+		if m.ForgetAfter > 0 && now.Sub(rec.LastSeen) > m.ForgetAfter {
+			continue
+		}
+		st, ok, err := m.StateOf(rec.ID, rec.Labels)
+		if err != nil {
+			return Resolved{}, err
+		}
+		if !ok {
+			continue
+		}
+		r.States[rec.ID] = st
+		if st == StateActive {
+			r.Active = append(r.Active, rec.ID)
+		}
+	}
+	sort.Strings(r.Active)
+	r.Quorum = QuorumFor(len(r.Active))
+	return r, nil
 }
 
 // QuorumFor is how many of n active members must agree: all of them with
 // one or two, a majority with three or more.
-func QuorumFor(n int) int { return 0 }
+func QuorumFor(n int) int {
+	if n <= 2 {
+		return n
+	}
+	return n/2 + 1
+}

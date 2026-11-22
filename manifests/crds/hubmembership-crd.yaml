@@ -44,9 +44,12 @@ spec:
                   type: string
                   pattern: '^([0-9]+[dhms])+$'
                 forgetAfter:
-                  description: How long a silent member hub keeps counting toward votes. "0" = never forget (retire it by changing this resource). Combinations of <n>d, <n>h, <n>m, <n>s (e.g. 7d, 1d12h, 90m).
-                  type: string
+                  description: How long a silent member hub keeps counting toward votes. 0 = never forget (retire it by changing this resource). Combinations of <n>d, <n>h, <n>m, <n>s (e.g. 7d, 1d12h, 90m).
+                  x-kubernetes-int-or-string: true
                   pattern: '^(0|([0-9]+[dhms])+)$'
+                  x-kubernetes-validations:
+                    - rule: type(self) == string || self == 0
+                      message: forgetAfter must be 0 or a duration like 7d, 1d12h or 90m
                 members:
                   description: Hubs that are members, by id or by label selector on the hub's own cluster self-registration. An id entry overrides a selector match.
                   type: array
