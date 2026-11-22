@@ -1724,6 +1724,18 @@ func (ctrl *ApplicationController) processRequestedAppOperation(app *appv1.Appli
 		}
 	}
 
+	// multihub: a watching or non-member hub starts no operations. One
+	// already running finishes (that is the drain).
+	if ctrl.multihub.Enabled() && !isOperationInProgress(app) {
+		if ok, why := ctrl.multihubMayStart(ctx); !ok {
+			state = NewOperationState(*app.Operation)
+			state.Phase = synccommon.OperationError
+			state.Message = "Operation not started: " + why
+			ctrl.setOperationState(ctx, app, state)
+			return
+		}
+	}
+
 	// multihubGen is the lease generation this pass runs under (0 = not coordinated).
 	var multihubGen int32
 	if ctrl.multihub.Enabled() && (app.Operation.Sync == nil || !app.Operation.Sync.DryRun) {
@@ -3225,6 +3237,13 @@ func (ctrl *ApplicationController) autoSync(ctx context.Context, app *appv1.Appl
 			logCtx.Warn(message)
 			return &appv1.ApplicationCondition{Type: appv1.ApplicationConditionSyncError, Message: message}, 0
 		}
+	}
+
+	// multihub: only active members (or any hub, with no membership
+	// declared) auto-sync.
+	if ok, why := ctrl.multihubMayStart(ctx); !ok {
+		logCtx.Debugf("Skipping auto-sync: %s", why)
+		return nil, 0
 	}
 
 	// multihub (C5): a user's sync to a specific revision (e.g. a rollback) on

@@ -369,6 +369,9 @@ func (ctrl *ApplicationController) multihubClaimOrphan(ctx context.Context, app 
 	if !ctrl.multihub.Enabled() || app.Operation != nil {
 		return false
 	}
+	if ok, _ := ctrl.multihubMayStart(ctx); !ok {
+		return false
+	}
 	fail := func(err error) bool {
 		d := multihub.Decision{Event: multihub.EventError, Reason: err.Error()}
 		ctrl.multihubReport(ctx, app, multihub.PathTakeover, d, "multihub: could not take over another hub's operation: "+err.Error())
@@ -639,6 +642,9 @@ func (ctrl *ApplicationController) multihubShareable(app *appv1.Application) boo
 // Failures are logged at debug: the other hub then simply refreshes itself.
 func (ctrl *ApplicationController) multihubPublishRefresh(ctx context.Context, app *appv1.Application, result multihubSharedResult) {
 	if !ctrl.multihubShareable(app) || result.Sync.Revision == "" {
+		return
+	}
+	if ok, _ := ctrl.multihubMayStart(ctx); !ok {
 		return
 	}
 	server, key, err := ctrl.multihubTarget(ctx, app)
@@ -930,5 +936,17 @@ func multihubTimerWait(ctx context.Context, d time.Duration) bool {
 // takeovers, publishing shared refreshes) for shared apps, and if not, why.
 // Only active members (or any hub, when no membership is declared) may.
 func (ctrl *ApplicationController) multihubMayStart(ctx context.Context) (bool, string) {
+	if !ctrl.multihub.Enabled() {
+		return true, ""
+	}
+	st, member, declared := ctrl.multihubOwnState(ctx)
+	switch {
+	case !declared:
+		return true, ""
+	case !member:
+		return false, fmt.Sprintf("hub %s is not a member of the hub group (HubMembership %s/%s); it starts no syncs", ctrl.multihub.HubID(), ctrl.namespace, multihub.HubMembershipName)
+	case st == multihub.StateWatching:
+		return false, fmt.Sprintf("hub %s is watching (HubMembership %s/%s); syncs run on the active hubs", ctrl.multihub.HubID(), ctrl.namespace, multihub.HubMembershipName)
+	}
 	return true, ""
 }
