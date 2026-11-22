@@ -227,3 +227,29 @@ func TestResolveConflictIsAnError(t *testing.T) {
 	_, err = m.Resolve([]HubRecord{{ID: "hub-a", Labels: map[string]string{"multihub.argoproj.io/role": "hub", "region": "eu-west"}, LastSeen: time.Now()}}, time.Now())
 	assert.Error(t, err, "the caller keeps its last valid membership")
 }
+
+// A hub declared by id counts even if it has never published a record (e.g.
+// it never came up): declared in Git, so it counts until Git changes. This
+// is the strictest reading, so a quorum can't shrink by a hub's absence.
+func TestResolveCountsDeclaredIDsWithoutRecords(t *testing.T) {
+	m, err := ParseMembership(membershipObj(t, `
+  forgetAfter: 7d
+  members:
+    - selector: {matchLabels: {multihub.argoproj.io/role: hub}}
+      state: active
+    - id: hub-z
+      state: active
+    - id: hub-w
+      state: watching
+`))
+	require.NoError(t, err)
+	now := time.Now()
+	r, err := m.Resolve([]HubRecord{
+		{ID: "hub-a", Labels: hubLabels, LastSeen: now},
+		{ID: "hub-b", Labels: hubLabels, LastSeen: now},
+	}, now)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"hub-a", "hub-b", "hub-z"}, r.Active)
+	assert.Equal(t, 2, r.Quorum, "3 active: majority")
+	assert.Equal(t, StateWatching, r.States["hub-w"])
+}
