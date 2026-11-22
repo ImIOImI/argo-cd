@@ -6,10 +6,17 @@ package multihub
 // (manifests/crds/hubmembership-crd.yaml) that every hub's root app syncs.
 
 import (
+	"errors"
+	"fmt"
+	"math"
+	"regexp"
+	"strconv"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -47,11 +54,99 @@ type Membership struct {
 
 // ParseMembership validates a HubMembership object.
 func ParseMembership(obj *unstructured.Unstructured) (Membership, error) {
-	return Membership{}, nil
+	spec, ok, err := unstructured.NestedMap(obj.Object, "spec")
+	if err != nil || !ok {
+		return Membership{}, errors.New("hubmembership: no spec")
+	}
+	var m Membership
+	if v, ok := spec["refreshPeriod"].(string); ok {
+		d, err := ParseDuration(v)
+		if err != nil {
+			return Membership{}, fmt.Errorf("hubmembership: refreshPeriod: %w", err)
+		}
+		if d == 0 {
+			return Membership{}, errors.New("hubmembership: refreshPeriod must be more than 0")
+		}
+		m.RefreshPeriod = d
+	} else if _, set := spec["refreshPeriod"]; set {
+		return Membership{}, errors.New("hubmembership: refreshPeriod must be a duration string")
+	}
+	if v, ok := spec["forgetAfter"].(string); ok {
+		d, err := ParseDuration(v)
+		if err != nil {
+			return Membership{}, fmt.Errorf("hubmembership: forgetAfter: %w", err)
+		}
+		m.ForgetAfter = d
+	} else if _, set := spec["forgetAfter"]; set {
+		return Membership{}, errors.New("hubmembership: forgetAfter must be a duration string")
+	}
+	raw, _ := spec["members"].([]any)
+	if len(raw) == 0 {
+		return Membership{}, errors.New("hubmembership: members must list at least one entry")
+	}
+	ids := map[string]bool{}
+	for i, r := range raw {
+		e, ok := r.(map[string]any)
+		if !ok {
+			return Membership{}, fmt.Errorf("hubmembership: members[%d] is not an object", i)
+		}
+		var entry MemberEntry
+		switch st := MemberState(fmt.Sprint(e["state"])); st {
+		case StateActive, StateWatching:
+			entry.State = st
+		default:
+			return Membership{}, fmt.Errorf("hubmembership: members[%d].state must be active or watching", i)
+		}
+		id, hasID := e["id"].(string)
+		sel, hasSel := e["selector"].(map[string]any)
+		if hasID == hasSel || (hasID && id == "") {
+			return Membership{}, fmt.Errorf("hubmembership: members[%d] needs exactly one of id or selector", i)
+		}
+		if hasID {
+			if ids[id] {
+				return Membership{}, fmt.Errorf("hubmembership: members[%d]: id %q listed twice", i, id)
+			}
+			ids[id] = true
+			entry.ID = id
+		} else {
+			var ls metav1.LabelSelector
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(sel, &ls); err != nil {
+				return Membership{}, fmt.Errorf("hubmembership: members[%d].selector: %w", i, err)
+			}
+			selector, err := metav1.LabelSelectorAsSelector(&ls)
+			if err != nil {
+				return Membership{}, fmt.Errorf("hubmembership: members[%d].selector: %w", i, err)
+			}
+			entry.Selector = selector
+		}
+		m.Members = append(m.Members, entry)
+	}
+	return m, nil
 }
+
+var durationPart = regexp.MustCompile(`([0-9]+)([dhms])`)
 
 // ParseDuration parses "0" or a combination of <n>d, <n>h, <n>m and <n>s,
 // e.g. "7d", "90m", "1d12h".
 func ParseDuration(s string) (time.Duration, error) {
-	return 0, nil
+	if s == "0" {
+		return 0, nil
+	}
+	if s == "" || durationPart.ReplaceAllString(s, "") != "" {
+		return 0, fmt.Errorf("invalid duration %q: use 0 or combinations of <n>d, <n>h, <n>m, <n>s (e.g. 7d, 1d12h, 90m)", s)
+	}
+	units := map[string]time.Duration{"d": 24 * time.Hour, "h": time.Hour, "m": time.Minute, "s": time.Second}
+	var total time.Duration
+	for _, p := range durationPart.FindAllStringSubmatch(s, -1) {
+		n, err := strconv.ParseInt(p[1], 10, 64)
+		if err != nil || n > int64(math.MaxInt64/units[p[2]]) {
+			return 0, fmt.Errorf("invalid duration %q: too large", s)
+		}
+		part := time.Duration(n) * units[p[2]]
+		if total > math.MaxInt64-part {
+			return 0, fmt.Errorf("invalid duration %q: too large", s)
+		}
+		total += part
+	}
+	return total, nil
 }

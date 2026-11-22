@@ -4,4 +4,5 @@ kind: Kustomization
 resources:
 - application-crd.yaml
 - appproject-crd.yaml
+- hubmembership-crd.yaml
 - applicationset-crd.yaml
