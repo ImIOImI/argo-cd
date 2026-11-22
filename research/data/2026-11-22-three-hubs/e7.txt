@@ -1,0 +1,14 @@
+E7-3 start 2026-11-22T02:59:12
+pushed generation 22 at 20:59:14
+application.argoproj.io/lab-app annotated
+application.argoproj.io/lab-app annotated
+application.argoproj.io/lab-app annotated
+hard refresh requested on both hubs at 02:59:14Z
+hub-a: operations=2 {'lab-4': 1, 'lab-9': 1}
+hub-b: operations=2 {'lab-2': 1, 'lab-app': 1}
+hub-c: operations=7 {'lab-1': 1, 'lab-10': 1, 'lab-3': 1, 'lab-5': 1, 'lab-6': 1, 'lab-7': 1, 'lab-8': 1}
+hook jobs created: 11 in 11 namespaces; per namespace: {'lab': 1, 'lab-1': 1, 'lab-10': 1, 'lab-2': 1, 'lab-3': 1, 'lab-4': 1, 'lab-5': 1, 'lab-6': 1, 'lab-7': 1, 'lab-8': 1, 'lab-9': 1}
+hub-a:      12 Synced/Healthy 
+hub-b:      12 Synced/Healthy 
+hub-c:      12 Synced/Healthy 
+22 22 22 22 22 22 22 22 22 22 22 

@@ -316,6 +316,17 @@ is a one-line change.
     record on the app's Lease. A hub that still has the app treats that as
     being outvoted and pauses it, so it can't redeploy what was deleted.
 
+### C7b. Balanced sharing for three or more hubs
+
+Three-hub measurement (research/2026-11-22-three-hubs.md): C7's "skip if
+another hub just refreshed" does one hub's worth of work in total, but lets
+the hub that leads keep it (one did ~76%). The fix needs the hub list:
+- **Each (app, period) has a preferred hub,** from a deterministic hash
+  over the listed hubs that are live.
+- **The preferred hub refreshes. The others skip** while its result is
+  fresh, and refresh themselves only if it's late (more than about 1.5
+  periods).
+
 ### C9. Divergence and pauses (2026-11-21 discussion)
 
 - **Divergence:** hubs whose definition fingerprints differ pause syncing

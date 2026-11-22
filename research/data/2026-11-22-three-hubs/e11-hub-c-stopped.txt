@@ -1,0 +1,28 @@
+=== E11-3 hub-c stopped at 2026-11-22T03:22:57; counted 2026-11-22T03:24:57 -> 2026-11-22T03:34:57
+hub-a: full=26 shared=12 apps=12
+  lab-1      full=  2 shared=  1
+  lab-10     full=  1 shared=  2
+  lab-2      full=  1 shared=  2
+  lab-3      full=  3 shared=  0
+  lab-4      full=  0 shared=  3
+  lab-5      full=  2 shared=  1
+  lab-6      full=  3 shared=  1
+  lab-7      full=  3 shared=  1
+  lab-8      full=  2 shared=  0
+  lab-9      full=  4 shared=  0
+  lab-app    full=  2 shared=  1
+  lab-root   full=  3 shared=  0
+hub-b: full=19 shared=17 apps=12
+  lab-1      full=  2 shared=  1
+  lab-10     full=  2 shared=  1
+  lab-2      full=  2 shared=  1
+  lab-3      full=  0 shared=  3
+  lab-4      full=  3 shared=  0
+  lab-5      full=  2 shared=  1
+  lab-6      full=  1 shared=  1
+  lab-7      full=  1 shared=  2
+  lab-8      full=  1 shared=  2
+  lab-9      full=  0 shared=  3
+  lab-app    full=  2 shared=  2
+  lab-root   full=  3 shared=  0
+hub-c: full=0 shared=0 apps=0

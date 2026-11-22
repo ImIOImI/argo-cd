@@ -1,0 +1,54 @@
+E8-3 start 2026-11-22T03:04:59
+pushed generation 23 at 21:05:01
+hard refresh of every lab app requested on hub-a at 03:05:11Z
+lease held by hub-a at 03:05:13Z
+hook running: lab-presync-0ba4a15-presync-1795316712 at 03:05:15Z
+hub-a controller stopped at 03:05:26Z
+multi-hub-lab.lab-1     hub-a   4
+multi-hub-lab.lab-10    hub-a   4
+multi-hub-lab.lab-2     hub-a   4
+multi-hub-lab.lab-3     hub-a   4
+multi-hub-lab.lab-4     hub-a   4
+multi-hub-lab.lab-5     hub-a   4
+multi-hub-lab.lab-6     hub-a   4
+multi-hub-lab.lab-7     hub-a   4
+multi-hub-lab.lab-8     hub-a   4
+multi-hub-lab.lab-9     hub-a   4
+multi-hub-lab.lab-app   hub-a   43
+=== after 5 min
+multi-hub-lab.lab-1           5
+multi-hub-lab.lab-10          5
+multi-hub-lab.lab-2           5
+multi-hub-lab.lab-3           5
+multi-hub-lab.lab-4           5
+multi-hub-lab.lab-5           5
+multi-hub-lab.lab-6           5
+multi-hub-lab.lab-7           5
+multi-hub-lab.lab-8           5
+multi-hub-lab.lab-9           5
+multi-hub-lab.lab-app         44
+== hub-b takeovers
+  03:06:10 lab-10 gen 5
+  03:06:10 lab-1 gen 5
+  03:06:10 lab-3 gen 5
+  03:06:14 lab-4 gen 5
+  03:06:14 lab-5 gen 5
+  03:06:17 lab-8 gen 5
+  03:06:17 lab-9 gen 5
+  03:06:19 lab-app gen 44
+== hub-c takeovers
+  03:06:09 lab-2 gen 5
+  03:06:16 lab-6 gen 5
+  03:06:17 lab-7 gen 5
+hub-a: operations=0 {}
+hub-b: operations=0 {}
+hub-c: operations=0 {}
+hook jobs created: 11 in 11 namespaces; per namespace: {'lab': 1, 'lab-1': 1, 'lab-10': 1, 'lab-2': 1, 'lab-3': 1, 'lab-4': 1, 'lab-5': 1, 'lab-6': 1, 'lab-7': 1, 'lab-8': 1, 'lab-9': 1}
+hub-b:      12 Synced/Healthy 
+hub-c:      12 Synced/Healthy 
+=== hub-a returns
+hub-a controller running at 03:10:56Z
+following events on hub-a: 11
+resumed own stale operations: 0
+     12 Synced/Healthy
+hook jobs created: 11 in 11 namespaces; per namespace: {'lab': 1, 'lab-1': 1, 'lab-10': 1, 'lab-2': 1, 'lab-3': 1, 'lab-4': 1, 'lab-5': 1, 'lab-6': 1, 'lab-7': 1, 'lab-8': 1, 'lab-9': 1}
