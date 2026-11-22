@@ -938,9 +938,18 @@ func multihubTimerWait(ctx context.Context, d time.Duration) bool {
 // multihubMayStart reports whether this hub may start new work (syncs,
 // takeovers, publishing shared refreshes) for shared apps, and if not, why.
 // Only active members (or any hub, when no membership is declared) may.
-func (ctrl *ApplicationController) multihubMayStart(ctx context.Context, _ *appv1.Application) (bool, string) {
+func (ctrl *ApplicationController) multihubMayStart(ctx context.Context, app *appv1.Application) (bool, string) {
 	if !ctrl.multihub.Enabled() {
 		return true, ""
+	}
+	// Apps that deploy into this hub's own cluster (its root app, its own
+	// configuration) are its own business: membership governs shared work.
+	// Gating them would also stop a watching hub from receiving the Git
+	// change that makes it active again.
+	if app != nil {
+		if dest, err := argo.GetDestinationCluster(ctx, app.Spec.Destination, ctrl.db); err == nil && dest.Server == multihubSelfServer {
+			return true, ""
+		}
 	}
 	st, member, declared := ctrl.multihubOwnState(ctx)
 	switch {
