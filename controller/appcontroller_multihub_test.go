@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -1546,4 +1547,41 @@ func TestMultihubOwnStateKeepsTheStatusQuoOnAConflict(t *testing.T) {
 	assert.True(t, declared)
 	assert.True(t, member)
 	assert.Equal(t, multihub.StateActive, st, "kept")
+}
+
+func hubRecordOn(t *testing.T, f *multihubPinFixture, id string) (*coordinationv1.Lease, bool) {
+	t.Helper()
+	lease, err := f.spoke.CoordinationV1().Leases(multihub.DefaultNamespace).Get(t.Context(), multihub.HubRecordName(id), metav1.GetOptions{})
+	if err != nil {
+		return nil, false
+	}
+	return lease, true
+}
+
+func TestMultihubHeartbeatPublishesThisHubsRecord(t *testing.T) {
+	app := pinTestApp()
+	f := newMultihubPinFixture(t, &fakeData{apps: []runtime.Object{app, &defaultProj},
+		additionalObjs: []runtime.Object{selfRegistration(map[string]string{"multihub.argoproj.io/role": "hub", "multihub.argoproj.io/hub-id": "hub-b"})}}, app)
+
+	f.ctrl.multihubHeartbeat(t.Context())
+
+	lease, ok := hubRecordOn(t, f, "hub-b")
+	require.True(t, ok, "published on the spoke")
+	assert.Equal(t, "hub-b", lease.Annotations[multihub.AnnotationHubID])
+	assert.Contains(t, lease.Annotations[multihub.AnnotationHubLabels], `"multihub.argoproj.io/role":"hub"`, "labels from self-registration")
+	assert.NotContains(t, lease.Annotations[multihub.AnnotationHubLabels], "secret-type", "only this hub's own labels, not Argo's bookkeeping")
+}
+
+func TestMultihubHeartbeatLoopRepeats(t *testing.T) {
+	app := pinTestApp()
+	f := newMultihubPinFixture(t, &fakeData{apps: []runtime.Object{app, &defaultProj}}, app)
+	var waits []time.Duration
+	f.ctrl.multihubWait = func(_ context.Context, d time.Duration) bool {
+		waits = append(waits, d)
+		return len(waits) < 3
+	}
+	f.ctrl.multihubHeartbeatLoop(t.Context())
+	_, ok := hubRecordOn(t, f, "hub-b")
+	assert.True(t, ok, "published before the first wait")
+	assert.Equal(t, []time.Duration{multihubHeartbeatInterval, multihubHeartbeatInterval, multihubHeartbeatInterval}, waits)
 }

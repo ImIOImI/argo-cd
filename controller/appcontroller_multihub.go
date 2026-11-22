@@ -865,3 +865,16 @@ func (ctrl *ApplicationController) multihubOwnState(ctx context.Context) (state 
 	ctrl.multihubLastOwn = &multihubOwn{state: st, member: member}
 	return st, member, true
 }
+
+// multihubHeartbeatInterval is how often a hub refreshes its hub records.
+const multihubHeartbeatInterval = 30 * time.Second
+
+// multihubHeartbeat publishes this hub's record (id, self-registration
+// labels, now) on every cluster it manages. Every multihub hub publishes,
+// member or not: selectors can only match labels a hub has published.
+func (ctrl *ApplicationController) multihubHeartbeat(ctx context.Context) {
+}
+
+// multihubHeartbeatLoop runs multihubHeartbeat every interval until ctx ends.
+func (ctrl *ApplicationController) multihubHeartbeatLoop(ctx context.Context) {
+}
