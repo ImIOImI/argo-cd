@@ -150,3 +150,36 @@ func ParseDuration(s string) (time.Duration, error) {
 	}
 	return total, nil
 }
+
+// HubRecord is what a hub publishes about itself on each spoke.
+type HubRecord struct {
+	ID       string
+	Labels   map[string]string
+	LastSeen time.Time
+}
+
+// Resolved is a membership resolved against the hub records seen.
+type Resolved struct {
+	// States of the member hubs by id; non-members are absent.
+	States map[string]MemberState
+	// Active member ids, sorted.
+	Active []string
+	// Quorum: how many active members must agree.
+	Quorum int
+}
+
+// StateOf is the declared state of the hub with id and labels; ok is false
+// if no entry matches it (not a member).
+func (m Membership) StateOf(id string, lbls map[string]string) (state MemberState, ok bool, err error) {
+	return "", false, nil
+}
+
+// Resolve resolves the membership against records, forgetting members
+// silent for longer than ForgetAfter (if set) as of now.
+func (m Membership) Resolve(records []HubRecord, now time.Time) (Resolved, error) {
+	return Resolved{}, nil
+}
+
+// QuorumFor is how many of n active members must agree: all of them with
+// one or two, a majority with three or more.
+func QuorumFor(n int) int { return 0 }

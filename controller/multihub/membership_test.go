@@ -131,3 +131,99 @@ func TestHubMembershipCRD(t *testing.T) {
 	assert.NotEmpty(t, spec.Properties["forgetAfter"].Pattern)
 	assert.NotEmpty(t, spec.Properties["refreshPeriod"].Pattern)
 }
+
+func TestQuorumFor(t *testing.T) {
+	for n, want := range map[int]int{1: 1, 2: 2, 3: 2, 4: 3, 5: 3, 6: 4, 7: 4} {
+		assert.Equal(t, want, QuorumFor(n), "%d active", n)
+	}
+	assert.Equal(t, 0, QuorumFor(0))
+}
+
+func exampleMembership(t *testing.T, forget string) Membership {
+	t.Helper()
+	m, err := ParseMembership(membershipObj(t, `
+  forgetAfter: `+forget+`
+  members:
+    - selector:
+        matchLabels: {multihub.argoproj.io/role: hub}
+      state: active
+    - id: hub-c
+      state: watching
+`))
+	require.NoError(t, err)
+	return m
+}
+
+var hubLabels = map[string]string{"multihub.argoproj.io/role": "hub"}
+
+func TestStateOf(t *testing.T) {
+	m := exampleMembership(t, "0")
+	st, ok, err := m.StateOf("hub-a", hubLabels)
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, StateActive, st)
+
+	st, ok, err = m.StateOf("hub-c", hubLabels)
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, StateWatching, st, "an id entry overrides the selector")
+
+	_, ok, err = m.StateOf("hub-x", map[string]string{"role": "spoke"})
+	require.NoError(t, err)
+	assert.False(t, ok, "matches nothing: not a member")
+}
+
+func TestStateOfConflictingSelectors(t *testing.T) {
+	m, err := ParseMembership(membershipObj(t, `
+  members:
+    - selector: {matchLabels: {multihub.argoproj.io/role: hub}}
+      state: active
+    - selector: {matchLabels: {region: eu-west}}
+      state: watching
+    - selector: {matchLabels: {tier: gold}}
+      state: active
+`))
+	require.NoError(t, err)
+	_, _, err = m.StateOf("hub-a", map[string]string{"multihub.argoproj.io/role": "hub", "region": "eu-west"})
+	assert.Error(t, err, "two selectors, two states: a conflict")
+	st, ok, err := m.StateOf("hub-a", map[string]string{"multihub.argoproj.io/role": "hub", "tier": "gold"})
+	require.NoError(t, err, "two selectors, same state: fine")
+	assert.True(t, ok)
+	assert.Equal(t, StateActive, st)
+}
+
+func TestResolve(t *testing.T) {
+	now := time.Date(2026, 11, 22, 12, 0, 0, 0, time.UTC)
+	records := []HubRecord{
+		{ID: "hub-a", Labels: hubLabels, LastSeen: now},
+		{ID: "hub-b", Labels: hubLabels, LastSeen: now.Add(-8 * 24 * time.Hour)}, // silent 8 days
+		{ID: "hub-c", Labels: hubLabels, LastSeen: now},
+		{ID: "hub-d", Labels: hubLabels, LastSeen: now.Add(-time.Minute)},
+		{ID: "spoke-tool", Labels: map[string]string{"role": "other"}, LastSeen: now},
+	}
+
+	r, err := exampleMembership(t, "0").Resolve(records, now)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]MemberState{"hub-a": StateActive, "hub-b": StateActive, "hub-c": StateWatching, "hub-d": StateActive}, r.States)
+	assert.Equal(t, []string{"hub-a", "hub-b", "hub-d"}, r.Active, "watching hubs don't vote; non-members aren't listed")
+	assert.Equal(t, 2, r.Quorum, "3 active: majority")
+
+	r, err = exampleMembership(t, "7d").Resolve(records, now)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"hub-a", "hub-d"}, r.Active, "hub-b forgotten after 7 days of silence")
+	assert.Equal(t, 2, r.Quorum, "2 active: unanimous")
+	assert.NotContains(t, r.States, "hub-b")
+}
+
+func TestResolveConflictIsAnError(t *testing.T) {
+	m, err := ParseMembership(membershipObj(t, `
+  members:
+    - selector: {matchLabels: {multihub.argoproj.io/role: hub}}
+      state: active
+    - selector: {matchLabels: {region: eu-west}}
+      state: watching
+`))
+	require.NoError(t, err)
+	_, err = m.Resolve([]HubRecord{{ID: "hub-a", Labels: map[string]string{"multihub.argoproj.io/role": "hub", "region": "eu-west"}, LastSeen: time.Now()}}, time.Now())
+	assert.Error(t, err, "the caller keeps its last valid membership")
+}
