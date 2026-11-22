@@ -34,6 +34,16 @@ Implemented so far:
   if both have the same app definition (fingerprint) and the result is at
   the pinned revision. The check reads a local watch of the Leases.
 
+- **Hub membership:** a `HubMembership` resource (CRD in
+  `manifests/crds/`, one object named `default` in the Argo namespace, synced
+  from Git) declares which hubs are members, by id or by a label selector on
+  each hub's own cluster self-registration, and whether each is `active` or
+  `watching`. It also holds `refreshPeriod` and `forgetAfter`. A watching or
+  non-member hub starts no work for shared apps but still manages its own
+  cluster. Each hub publishes a record of itself (`hub.<id>` Lease) on every
+  spoke. Ids must be distinct per hub; the fork doesn't check. Example:
+  `hack/multi-hub-lab/bootstrap/hubmembership.yaml`.
+
 ## Configuration
 
 All settings are environment variables on the **application controller**

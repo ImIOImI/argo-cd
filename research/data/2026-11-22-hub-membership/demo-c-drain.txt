@@ -1,0 +1,31 @@
+Demo C start 2026-11-22T16:10:55
+pushed generation 26 at 10:10:57
+hard refresh requested on hub-c at 16:10:57Z
+lease held by hub-c at 16:11:03Z
+hook running: lab-presync-31bf6c4-presync-1795363862 at 16:11:06Z
+secret/in-cluster configured
+hub-c retired (role=retired) at 16:11:11Z
+hub-c Running startedAt=2026-11-22T16:11:02Z finishedAt=None by=auto rev=31bf6c4  op-pending=True | waiting for completion of hook batch/Job/lab-presync-31bf6c4-presync-1795363862
+lease holder=hub-c gen=47 renew=2026-11-22T16:11:05.568458Z
+mirror hub=hub-c gen=47 running=True phase=Running startedAt=2026-11-22T16:11:02Z | waiting for completion of hook batch/Job/lab-presync-31bf6c4-presync-1795363862
+=== after the running sync
+hub-c Succeeded startedAt=2026-11-22T16:11:02Z finishedAt=2026-11-22T16:13:29Z by=auto rev=31bf6c4  op-pending=False | successfully synced (all tasks run)
+lease holder=- gen=47 renew=2026-11-22T16:13:28.858050Z
+mirror hub=hub-c gen=47 running=False phase=Succeeded startedAt=2026-11-22T16:11:02Z | successfully synced (all tasks run)
+lab-presync-31bf6c4-presync-1795363862   2026-11-22T16:11:03Z   1
+hub-a takeovers of lab-app: 0
+hub-b takeovers of lab-app: 0
+=== second commit at 2026-11-22T16:14:26 (hub-c retired)
+pushed generation 27 at 10:14:27
+hard refresh requested on both hubs at 16:14:29Z
+hub-a: operations=4 {'lab-4': 1, 'lab-6': 1, 'lab-9': 1, 'lab-app': 1}
+hub-b: operations=7 {'lab-1': 1, 'lab-10': 1, 'lab-2': 1, 'lab-3': 1, 'lab-5': 1, 'lab-7': 1, 'lab-8': 1}
+hub-c: operations=0 {}
+hook jobs created: 2 in 2 namespaces; per namespace: {'lab': 1, 'lab-6': 1}
+hub-a:      11 Synced/Healthy 
+hub-b:      11 Synced/Healthy 
+hub-c:      11 Synced/Healthy 
+ID      LAST-SEEN                     LABELS
+hub-a   2026-11-22T16:19:06.329950Z   {"multihub.argoproj.io/hub-id":"hub-a","multihub.argoproj.io/role":"hub"}
+hub-b   2026-11-22T16:19:17.565554Z   {"multihub.argoproj.io/hub-id":"hub-b","multihub.argoproj.io/role":"hub"}
+hub-c   2026-11-22T16:19:31.158647Z   {"multihub.argoproj.io/hub-id":"hub-c","multihub.argoproj.io/role":"retired"}

@@ -1,0 +1,9 @@
+pushed 90s at 15:28:26Z
+hub-a: refreshPeriod=90s root=Synced/Succeeded
+hub-b: refreshPeriod=90s root=Synced/Succeeded
+hub-c: refreshPeriod=120s root=OutOfSync/Succeeded
+hub-c root last op: successfully synced (all tasks run)
+=== after fix (57ca73492)
+hub-a: refreshPeriod=90s root=Synced/Succeeded
+hub-b: refreshPeriod=90s root=Synced/Succeeded
+hub-c: refreshPeriod=90s root=Synced/Succeeded
