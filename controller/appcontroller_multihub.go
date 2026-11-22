@@ -848,11 +848,7 @@ func (ctrl *ApplicationController) multihubOwnState(ctx context.Context) (state 
 	if !ok {
 		return multihub.StateActive, true, false
 	}
-	var lbls map[string]string
-	if self, err := ctrl.db.GetCluster(ctx, multihubSelfServer); err == nil {
-		lbls = self.Labels
-	}
-	st, member, err := m.StateOf(ctrl.multihub.HubID(), lbls)
+	st, member, err := m.StateOf(ctrl.multihub.HubID(), ctrl.multihubSelfLabels(ctx))
 	ctrl.multihubOwnMu.Lock()
 	defer ctrl.multihubOwnMu.Unlock()
 	if err != nil {
@@ -873,8 +869,59 @@ const multihubHeartbeatInterval = 30 * time.Second
 // labels, now) on every cluster it manages. Every multihub hub publishes,
 // member or not: selectors can only match labels a hub has published.
 func (ctrl *ApplicationController) multihubHeartbeat(ctx context.Context) {
+	if !ctrl.multihub.Enabled() {
+		return
+	}
+	lbls := ctrl.multihubSelfLabels(ctx)
+	clusters, err := ctrl.db.ListClusters(ctx)
+	if err != nil {
+		log.WithError(err).Debug("multihub: heartbeat: can't list clusters")
+		return
+	}
+	for _, c := range clusters.Items {
+		if err := ctrl.multihub.PublishHubRecord(ctx, c.Server, lbls); err != nil {
+			log.WithError(err).WithField("server", c.Server).Debug("multihub: heartbeat: can't publish hub record")
+		}
+	}
+}
+
+// multihubSelfLabels are the labels on this hub's own cluster
+// self-registration, without Argo's bookkeeping label.
+func (ctrl *ApplicationController) multihubSelfLabels(ctx context.Context) map[string]string {
+	self, err := ctrl.db.GetCluster(ctx, multihubSelfServer)
+	if err != nil {
+		return nil
+	}
+	out := map[string]string{}
+	for k, v := range self.Labels {
+		if k != common.LabelKeySecretType {
+			out[k] = v
+		}
+	}
+	return out
 }
 
 // multihubHeartbeatLoop runs multihubHeartbeat every interval until ctx ends.
 func (ctrl *ApplicationController) multihubHeartbeatLoop(ctx context.Context) {
+	wait := ctrl.multihubWait
+	if wait == nil {
+		wait = multihubTimerWait
+	}
+	for {
+		ctrl.multihubHeartbeat(ctx)
+		if !wait(ctx, multihubHeartbeatInterval) {
+			return
+		}
+	}
+}
+
+func multihubTimerWait(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
+	}
 }
