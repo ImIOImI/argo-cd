@@ -291,6 +291,31 @@ from Git), that hub doesn't delete it. Instead:
 
 Not built yet.
 
+### Membership and voting (decided 2026-11-21)
+
+C8 and C9 need to know which hubs exist, so they need an explicit **hub
+list**. It's a shared `argocd-cm` key managed from Git like the refresh
+period, e.g. `multihub.hubs: "hub-a,hub-b,hub-c"`. Adding or retiring a hub
+is a one-line change.
+
+**Voting rule:**
+- **1–2 hubs listed:** unanimous. Every listed hub must agree.
+- **3 or more listed:** majority of the listed hubs (2 of 3, 3 of 4, 3 of 5).
+
+**Details:**
+- **Counted against the list, not against the live hubs.** A listed hub
+  that is down counts as not agreeing. With three listed and one down, the
+  other two are still a majority. With two listed and one down, nothing that
+  needs agreement proceeds until it's back or removed from the list.
+- **No majority means pause.** That covers ties with an even number of hubs
+  and splits with no winner.
+- **An outvoted hub stands down for that app:**
+  - **Divergence (C9):** its copy of the app is paused, with a condition
+    naming the hubs it disagrees with, while the majority keeps syncing.
+  - **Removal (C8):** a deletion agreed by a majority leaves a "removed"
+    record on the app's Lease. A hub that still has the app treats that as
+    being outvoted and pauses it, so it can't redeploy what was deleted.
+
 ### C9. Divergence and pauses (2026-11-21 discussion)
 
 - **Divergence:** hubs whose definition fingerprints differ pause syncing
