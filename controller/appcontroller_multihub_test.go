@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"testing"
 	"time"
@@ -20,10 +21,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	apiruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
+	"sigs.k8s.io/yaml"
 
 	synccommon "github.com/argoproj/argo-cd/gitops-engine/v3/pkg/sync/common"
 	"github.com/argoproj/argo-cd/gitops-engine/v3/pkg/utils/kube"
@@ -1429,4 +1434,116 @@ func TestMultihubResyncLoopFollowsTheLivePeriod(t *testing.T) {
 	assert.Equal(t, 2*time.Minute, waits[0])
 	assert.Equal(t, 2*time.Minute, waits[1])
 	assert.Equal(t, 90*time.Second, waits[2], "the new period, without a restart")
+}
+
+func selfRegistration(lbls map[string]string) *corev1.Secret {
+	l := map[string]string{"argocd.argoproj.io/secret-type": "cluster"}
+	maps.Copy(l, lbls)
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "in-cluster", Namespace: test.FakeArgoCDNamespace, Labels: l},
+		Data:       map[string][]byte{"name": []byte("in-cluster"), "server": []byte("https://kubernetes.default.svc"), "config": []byte("{}")},
+	}
+}
+
+func hubMembership(t *testing.T, members string) *unstructured.Unstructured {
+	t.Helper()
+	obj := &unstructured.Unstructured{}
+	require.NoError(t, yaml.Unmarshal([]byte(`
+apiVersion: multihub.argoproj.io/v1alpha1
+kind: HubMembership
+metadata: {name: default, namespace: `+test.FakeArgoCDNamespace+`}
+spec:
+  members:
+`+members), &obj.Object))
+	return obj
+}
+
+// ownStateController: hub-b's controller with the given self-registration
+// labels, watching a fake HubMembership (none if members is "").
+func ownStateController(t *testing.T, lbls map[string]string, members string) (*ApplicationController, *dynamicfake.FakeDynamicClient) {
+	t.Helper()
+	app := pinTestApp()
+	f := newMultihubPinFixture(t, &fakeData{apps: []runtime.Object{app, &defaultProj}, additionalObjs: []runtime.Object{selfRegistration(lbls)}}, app)
+	var objs []runtime.Object
+	if members != "" {
+		objs = append(objs, hubMembership(t, members))
+	}
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(apiruntime.NewScheme(),
+		map[schema.GroupVersionResource]string{multihub.HubMembershipGVR: "HubMembershipList"}, objs...)
+	f.ctrl.MultihubWatchMembership(dyn)
+	t.Cleanup(func() { f.ctrl.multihubMembership.Stop() })
+	return f.ctrl, dyn
+}
+
+func ownStateEventually(t *testing.T, ctrl *ApplicationController, want multihub.MemberState, wantMember, wantDeclared bool) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		st, member, declared := ctrl.multihubOwnState(t.Context())
+		return declared == wantDeclared && member == wantMember && (!member || st == want)
+	}, 10*time.Second, 20*time.Millisecond)
+}
+
+func TestMultihubOwnStateFromSelfRegistrationLabels(t *testing.T) {
+	role := map[string]string{"multihub.argoproj.io/role": "hub", "multihub.argoproj.io/hub-id": "hub-b"}
+	ctrl, _ := ownStateController(t, role, `
+    - selector: {matchLabels: {multihub.argoproj.io/role: hub}}
+      state: active
+`)
+	ownStateEventually(t, ctrl, multihub.StateActive, true, true)
+}
+
+func TestMultihubOwnStateIDOverridesSelector(t *testing.T) {
+	ctrl, _ := ownStateController(t, map[string]string{"multihub.argoproj.io/role": "hub"}, `
+    - selector: {matchLabels: {multihub.argoproj.io/role: hub}}
+      state: active
+    - id: hub-b
+      state: watching
+`)
+	ownStateEventually(t, ctrl, multihub.StateWatching, true, true)
+}
+
+func TestMultihubOwnStateNotAMember(t *testing.T) {
+	ctrl, _ := ownStateController(t, map[string]string{"region": "eu-west"}, `
+    - selector: {matchLabels: {multihub.argoproj.io/role: hub}}
+      state: active
+`)
+	ownStateEventually(t, ctrl, "", false, true)
+}
+
+func TestMultihubOwnStateWithoutAHubMembership(t *testing.T) {
+	ctrl, _ := ownStateController(t, nil, "")
+	time.Sleep(300 * time.Millisecond)
+	st, member, declared := ctrl.multihubOwnState(t.Context())
+	assert.False(t, declared, "no HubMembership: today's behavior")
+	assert.True(t, member)
+	assert.Equal(t, multihub.StateActive, st)
+}
+
+// Selectors that give this hub two different states: keep the state it had
+// (status quo), don't guess.
+func TestMultihubOwnStateKeepsTheStatusQuoOnAConflict(t *testing.T) {
+	lbls := map[string]string{"multihub.argoproj.io/role": "hub", "region": "eu-west"}
+	ctrl, dyn := ownStateController(t, lbls, `
+    - selector: {matchLabels: {multihub.argoproj.io/role: hub}}
+      state: active
+`)
+	ownStateEventually(t, ctrl, multihub.StateActive, true, true)
+
+	conflicting := hubMembership(t, `
+    - selector: {matchLabels: {multihub.argoproj.io/role: hub}}
+      state: active
+    - selector: {matchLabels: {region: eu-west}}
+      state: watching
+`)
+	_, err := dyn.Resource(multihub.HubMembershipGVR).Namespace(test.FakeArgoCDNamespace).Update(t.Context(), conflicting, metav1.UpdateOptions{})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		m, _ := ctrl.multihubMembership.Current()
+		return len(m.Members) == 2
+	}, 10*time.Second, 20*time.Millisecond)
+
+	st, member, declared := ctrl.multihubOwnState(t.Context())
+	assert.True(t, declared)
+	assert.True(t, member)
+	assert.Equal(t, multihub.StateActive, st, "kept")
 }

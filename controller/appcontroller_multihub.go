@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
@@ -817,4 +818,19 @@ func (ctrl *ApplicationController) multihubResyncLoop(ctx context.Context) {
 			ctrl.requestAppRefresh(app.QualifiedName(), nil, delay)
 		}
 	}
+}
+
+// MultihubWatchMembership starts following the HubMembership in the
+// controller's namespace (C8/C9 groundwork). Called by the command with a
+// dynamic client; a no-op when multihub is off.
+func (ctrl *ApplicationController) MultihubWatchMembership(client dynamic.Interface) {
+}
+
+// multihubOwnState is this hub's state under the declared membership.
+// declared is false when no HubMembership exists: today's behavior, every
+// hub acts. member is false when this hub matches no entry. A membership
+// that can't be resolved for this hub (conflicting selectors) keeps the
+// state it had before.
+func (ctrl *ApplicationController) multihubOwnState(ctx context.Context) (state multihub.MemberState, member, declared bool) {
+	return multihub.StateActive, true, false
 }

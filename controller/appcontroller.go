@@ -179,6 +179,12 @@ type ApplicationController struct {
 	// multihubWait waits d (or until ctx is done, returning false); nil =
 	// a timer. A field so tests can drive the resync loop.
 	multihubWait func(ctx context.Context, d time.Duration) bool
+	// multihubMembership follows the HubMembership (nil until
+	// MultihubWatchMembership).
+	multihubMembership *multihub.MembershipWatcher
+	// multihubLastOwnState is the last own state resolved without conflict.
+	multihubLastOwnState *multihub.MemberState
+	multihubLastMember   bool
 }
 
 // NewApplicationController creates new instance of ApplicationController.
