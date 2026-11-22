@@ -1,0 +1,17 @@
+# Which hubs are members, synced to every hub by its root app. A hub's
+# labels come from its own self-registration (see ../self-register.sh).
+apiVersion: multihub.argoproj.io/v1alpha1
+kind: HubMembership
+metadata:
+  name: default
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  refreshPeriod: 120s
+  forgetAfter: 0
+  members:
+    - selector:
+        matchLabels:
+          multihub.argoproj.io/role: hub
+      state: active
