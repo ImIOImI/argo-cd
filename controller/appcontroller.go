@@ -1727,7 +1727,7 @@ func (ctrl *ApplicationController) processRequestedAppOperation(app *appv1.Appli
 	// multihub: a watching or non-member hub starts no operations. One
 	// already running finishes (that is the drain).
 	if ctrl.multihub.Enabled() && !isOperationInProgress(app) {
-		if ok, why := ctrl.multihubMayStart(ctx); !ok {
+		if ok, why := ctrl.multihubMayStart(ctx, app); !ok {
 			state = NewOperationState(*app.Operation)
 			state.Phase = synccommon.OperationError
 			state.Message = "Operation not started: " + why
@@ -3241,7 +3241,7 @@ func (ctrl *ApplicationController) autoSync(ctx context.Context, app *appv1.Appl
 
 	// multihub: only active members (or any hub, with no membership
 	// declared) auto-sync.
-	if ok, why := ctrl.multihubMayStart(ctx); !ok {
+	if ok, why := ctrl.multihubMayStart(ctx, app); !ok {
 		logCtx.Debugf("Skipping auto-sync: %s", why)
 		return nil, 0
 	}

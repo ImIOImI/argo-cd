@@ -1701,3 +1701,34 @@ func TestMultihubRefreshPeriodComesFromHubMembershipFirst(t *testing.T) {
 	require.NoError(t, err)
 	require.Eventually(t, func() bool { return f.ctrl.refreshPeriod() == 3*time.Minute }, 10*time.Second, 20*time.Millisecond, "HubMembership's refreshPeriod wins")
 }
+
+// Found live (research/2026-11-22-hub-membership.md): the gate also stopped
+// a watching hub's root app, so the Git change that makes it active again
+// could never be applied. Apps that deploy into the hub's own cluster are
+// that hub's own business; membership governs shared work only.
+func TestMultihubWatchingHubStillManagesItsOwnCluster(t *testing.T) {
+	root := pinTestApp()
+	root.Name = "root"
+	root.Spec.Destination = v1alpha1.ApplicationDestination{Server: "https://kubernetes.default.svc", Namespace: "argocd"}
+	root.Operation = &v1alpha1.Operation{Sync: &v1alpha1.SyncOperation{}, InitiatedBy: v1alpha1.OperationInitiator{Automated: true}}
+	f := newMultihubPinFixture(t, &fakeData{
+		apps:              []runtime.Object{root, &defaultProj},
+		manifestResponses: []*apiclient.ManifestResponse{{Manifests: []string{}}},
+	}, root)
+	withMembership(t, f, hubBWatching)
+
+	ok, why := f.ctrl.multihubMayStart(t.Context(), root)
+	assert.True(t, ok, why)
+
+	f.ctrl.processRequestedAppOperation(root)
+	got, err := f.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(root.Namespace).Get(t.Context(), root.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, got.Status.OperationState)
+	// The unit-test controller can't build an in-cluster client, so the sync
+	// itself can't succeed here; what matters is that it isn't refused.
+	assert.NotContains(t, got.Status.OperationState.Message, "Operation not started", "its own root still syncs")
+
+	shared := pinTestApp()
+	ok, _ = f.ctrl.multihubMayStart(t.Context(), shared)
+	assert.False(t, ok, "shared apps are still gated")
+}

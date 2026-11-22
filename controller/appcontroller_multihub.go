@@ -369,7 +369,7 @@ func (ctrl *ApplicationController) multihubClaimOrphan(ctx context.Context, app 
 	if !ctrl.multihub.Enabled() || app.Operation != nil {
 		return false
 	}
-	if ok, _ := ctrl.multihubMayStart(ctx); !ok {
+	if ok, _ := ctrl.multihubMayStart(ctx, app); !ok {
 		return false
 	}
 	fail := func(err error) bool {
@@ -644,7 +644,7 @@ func (ctrl *ApplicationController) multihubPublishRefresh(ctx context.Context, a
 	if !ctrl.multihubShareable(app) || result.Sync.Revision == "" {
 		return
 	}
-	if ok, _ := ctrl.multihubMayStart(ctx); !ok {
+	if ok, _ := ctrl.multihubMayStart(ctx, app); !ok {
 		return
 	}
 	server, key, err := ctrl.multihubTarget(ctx, app)
@@ -938,7 +938,7 @@ func multihubTimerWait(ctx context.Context, d time.Duration) bool {
 // multihubMayStart reports whether this hub may start new work (syncs,
 // takeovers, publishing shared refreshes) for shared apps, and if not, why.
 // Only active members (or any hub, when no membership is declared) may.
-func (ctrl *ApplicationController) multihubMayStart(ctx context.Context) (bool, string) {
+func (ctrl *ApplicationController) multihubMayStart(ctx context.Context, _ *appv1.Application) (bool, string) {
 	if !ctrl.multihub.Enabled() {
 		return true, ""
 	}
