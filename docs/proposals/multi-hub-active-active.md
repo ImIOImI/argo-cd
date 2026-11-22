@@ -345,6 +345,33 @@ labels on its own cluster Secret (`server: https://kubernetes.default.svc`),
 applied per hub at bootstrap. These are the same labels ApplicationSet
 cluster generators match.
 
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: in-cluster
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: cluster
+    multihub.argoproj.io/hub-id: hub-a   # convention: matches ARGOCD_MULTIHUB_HUB_ID
+    multihub.argoproj.io/role: hub
+stringData:
+  name: in-cluster
+  server: https://kubernetes.default.svc
+```
+
+**Identity.**
+- **The id comes from `ARGOCD_MULTIHUB_HUB_ID`.** It must be distinct per
+  hub. That's the operator's job; the fork doesn't check it.
+- **Labels may repeat.** Selectors rely on that.
+- **Convention, not enforced:** documentation, demos and the lab set
+  `multihub.argoproj.io/hub-id` to the hub's id. One hub can then be
+  selected either by `id:` or by that label.
+- **What a reused id breaks.** Two hubs with the same id look like one:
+  - both can hold the lock at once, so fencing is lost;
+  - each ignores the other's shared refresh as its own;
+  - they count as one vote.
+
 **Rules:**
 - **States:** `active` votes and does the work. `watching` reports its
   definition fingerprint but doesn't sync, share or vote. Pausing a hub
