@@ -766,6 +766,9 @@ func (ctrl *ApplicationController) refreshPeriod() time.Duration {
 	if !ctrl.multihub.Enabled() {
 		return ctrl.statusRefreshTimeout
 	}
+	if m, ok := ctrl.multihubMembership.Current(); ok && m.RefreshPeriod > 0 {
+		return m.RefreshPeriod
+	}
 	cm, err := ctrl.settingsMgr.GetConfigMapByName(common.ArgoCDConfigMapName)
 	if err != nil {
 		return ctrl.statusRefreshTimeout
