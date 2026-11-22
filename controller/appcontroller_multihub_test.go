@@ -1682,3 +1682,22 @@ func TestMultihubWatchingHubNeitherClaimsNorPublishes(t *testing.T) {
 	_, err = f.spoke.CoordinationV1().Leases(multihub.DefaultNamespace).Get(t.Context(), key.LeaseName(), metav1.GetOptions{})
 	assert.True(t, apierrors.IsNotFound(err), "publishes no shared refresh")
 }
+
+func TestMultihubRefreshPeriodComesFromHubMembershipFirst(t *testing.T) {
+	app := pinTestApp()
+	f := newMultihubPinFixture(t, &fakeData{apps: []runtime.Object{app, &defaultProj}, configMapData: map[string]string{"timeout.reconciliation": "10m"}}, app)
+	require.Equal(t, 10*time.Minute, f.ctrl.refreshPeriod(), "no HubMembership: argocd-cm")
+
+	withMembership(t, f, "    - {id: hub-b, state: active}\n")
+	assert.Equal(t, 10*time.Minute, f.ctrl.refreshPeriod(), "HubMembership without refreshPeriod: argocd-cm")
+
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(apiruntime.NewScheme(),
+		map[schema.GroupVersionResource]string{multihub.HubMembershipGVR: "HubMembershipList"}, hubMembership(t, "    - {id: hub-b, state: active}\n"))
+	f.ctrl.multihubMembership.Stop()
+	f.ctrl.MultihubWatchMembership(dyn)
+	withPeriod := hubMembership(t, "    - {id: hub-b, state: active}\n")
+	require.NoError(t, unstructured.SetNestedField(withPeriod.Object, "3m", "spec", "refreshPeriod"))
+	_, err := dyn.Resource(multihub.HubMembershipGVR).Namespace(test.FakeArgoCDNamespace).Update(t.Context(), withPeriod, metav1.UpdateOptions{})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool { return f.ctrl.refreshPeriod() == 3*time.Minute }, 10*time.Second, 20*time.Millisecond, "HubMembership's refreshPeriod wins")
+}
