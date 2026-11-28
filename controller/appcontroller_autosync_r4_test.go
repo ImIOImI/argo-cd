@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -87,4 +88,35 @@ func TestAutoSyncR4AlreadySyncedRevisionIsUnchanged(t *testing.T) {
 	got := r4AutoSync(t, app, true)
 	require.NotNil(t, got.Operation)
 	assert.NotEmpty(t, got.Operation.Sync.Resources, "a self-heal of drift, as before")
+}
+
+// With several hubs, "the last synced revision" is the spoke's, which may
+// have been synced by another hub: that hub's sync is in the operation
+// mirror on the Lease (C3). Here hub-a already synced r4Compared; this hub's
+// own last sync is older. OutOfSync is then drift: self-heal, not a full
+// sync that would run the hooks again.
+func TestAutoSyncR4UsesTheSpokesLastSyncAcrossHubs(t *testing.T) {
+	app := r4App(true)
+	f := newMultihubPinFixture(t, &fakeData{
+		apps:                           []runtime.Object{app, &defaultProj},
+		updateRevisionForPathsResponse: &apiclient.UpdateRevisionForPathsResponse{Changes: true, Revision: r4Compared},
+	}, app)
+	server, key := f.target(t)
+	d, err := f.hubA.AcquireForOperation(t.Context(), server, key)
+	require.NoError(t, err)
+	byHubA := app.Status.OperationState.DeepCopy()
+	byHubA.SyncResult.Revision = r4Compared
+	byHubA.Operation.Sync.Revision = r4Compared
+	raw, err := json.Marshal(byHubA)
+	require.NoError(t, err)
+	require.NoError(t, f.hubA.MirrorOperation(t.Context(), server, key, d.Generation, false, raw))
+	require.NoError(t, f.hubA.Release(t.Context(), server, key))
+
+	syncStatus := v1alpha1.SyncStatus{Status: v1alpha1.SyncStatusCodeOutOfSync, Revision: r4Compared}
+	resources := []v1alpha1.ResourceStatus{{Name: "guestbook", Kind: kube.DeploymentKind, Status: v1alpha1.SyncStatusCodeOutOfSync}}
+	_, _ = f.ctrl.autoSync(t.Context(), app, &syncStatus, resources, false)
+	got, err := f.ctrl.applicationClientset.ArgoprojV1alpha1().Applications(test.FakeArgoCDNamespace).Get(t.Context(), app.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, got.Operation)
+	assert.NotEmpty(t, got.Operation.Sync.Resources, "drift after hub-a's sync of this revision: self-heal")
 }
