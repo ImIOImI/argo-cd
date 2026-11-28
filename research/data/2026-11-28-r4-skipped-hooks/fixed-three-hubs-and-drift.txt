@@ -1,0 +1,20 @@
+first commit 2026-11-28T03:44:34
+pushed generation 36 at 21:44:37
+hard refresh requested on both hubs at 03:44:37Z
+second commit (during the hooks) 2026-11-28T03:45:07
+pushed generation 37 at 21:45:11
+hard refresh requested on both hubs at 03:45:11Z
+=== after the second commit, 9 min
+hub-a: operations=2 partial=0 {'lab-10': 1, 'lab-app': 1} 
+hub-b: operations=8 partial=0 {'lab-2': 1, 'lab-4': 1, 'lab-5': 1, 'lab-6': 1, 'lab-7': 2, 'lab-8': 1, 'lab-9': 1} 
+hub-c: operations=2 partial=0 {'lab-1': 1, 'lab-3': 1} 
+hook jobs created: 12 in 11 namespaces; per namespace: {'lab': 1, 'lab-1': 1, 'lab-10': 1, 'lab-2': 1, 'lab-3': 1, 'lab-4': 1, 'lab-5': 1, 'lab-6': 1, 'lab-7': 2, 'lab-8': 1, 'lab-9': 1}
+37 37 37 37 37 37 37 37 37 37 37 
+=== drift: lab-3's ConfigMap edited on the spoke at 2026-11-28T03:54:15
+configmap/lab-config patched
+hub-a: operations=0 partial=0 {} 
+hub-b: operations=1 partial=1 {'lab-3': 1} partial: {'lab-3': 1}
+hub-c: operations=0 partial=0 {} 
+hook jobs created: 0 in 0 namespaces; per namespace: {}
+lab-3 generation now: 37
+

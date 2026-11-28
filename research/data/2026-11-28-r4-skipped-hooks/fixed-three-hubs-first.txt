@@ -1,0 +1,15 @@
+first commit 2026-11-28T03:23:09
+pushed generation 34 at 21:23:11
+hard refresh requested on both hubs at 03:23:12Z
+second commit (during the hooks) 2026-11-28T03:23:42
+pushed generation 35 at 21:23:44
+hard refresh requested on both hubs at 03:23:48Z
+=== after the second commit (2026-11-28T03:23:42), 9 min
+hub-a: operations=1 partial=0 {'lab-app': 1} 
+hub-b: operations=0 partial=0 {} 
+hub-c: operations=11 partial=1 {'lab-1': 1, 'lab-10': 1, 'lab-2': 1, 'lab-3': 1, 'lab-4': 1, 'lab-5': 1, 'lab-6': 1, 'lab-7': 2, 'lab-8': 1, 'lab-9': 1} partial: {'lab-7': 1}
+hook jobs created: 11 in 11 namespaces; per namespace: {'lab': 1, 'lab-1': 1, 'lab-10': 1, 'lab-2': 1, 'lab-3': 1, 'lab-4': 1, 'lab-5': 1, 'lab-6': 1, 'lab-7': 1, 'lab-8': 1, 'lab-9': 1}
+35 35 35 35 35 35 35 35 35 35 35 
+hub-a: R4 re-check took effect: 207
+hub-b: R4 re-check took effect: 236
+hub-c: R4 re-check took effect: 34

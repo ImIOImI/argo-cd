@@ -1,7 +1,7 @@
 # R4: a commit compared mid-sync is later synced partially, skipping hooks (upstream bug)
 
 **Date:** 2026-11-28 · **Images:** fork `argocd-multihub:1c4d21255` with multihub **off**, and stock
-`quay.io/argoproj/argocd:v3.6.1` · **No fork code changed**
+`quay.io/argoproj/argocd:v3.6.1` · **Fix:** `39cd7f44f` … `86a5dd5a8`
 
 ## Summary
 
@@ -122,6 +122,59 @@ commit's hooks.
      repo looks like a change to every app. Combined with self-heal, that
      can mean extra syncs.
 
+## Fix (option 2, chosen by Troy)
+
+**Code:** `controller/appcontroller_autosync_r4.go`.
+- Before `autoSync` concludes a revision was already attempted, it
+  re-checks a "no changes" verdict against the **last synced** revision,
+  through the existing `EvaluateAppRevisionsChanges` / `UpdateRevisionForPaths`
+  path.
+- With multihub on, the last synced revision is **the spoke's**: the
+  completed operation mirrored on the app's Lease, whichever hub ran it.
+  Otherwise it's this hub's own `OperationState`.
+- If the app's source changed between the two, the revision is new: a full
+  sync, hooks included. If not, upstream's partial self-heal stands.
+- Errors count as changed, because a full sync is the safe outcome.
+- Single-source apps only.
+- Applies with or without multihub.
+- **Remove when upstream fixes #27875.**
+
+**TDD record:**
+
+| Red | Green | What | Red failures |
+|---|---|---|---|
+| `39cd7f44f` | `98ce7e6f2` | the re-check | `TestAutoSyncR4NewCommitComparedButNotSyncedIsAFullSync` (today: partial), `TestAutoSyncR4WithoutSelfHealTheNewCommitIsStillSynced` (today: skipped). Two guard tests pass at red: no path changes means self-heal; the already-synced revision is unchanged |
+| `e6de13fd4` | `86a5dd5a8` | the base is the spoke's last sync across hubs; the log line drops to debug | `TestAutoSyncR4UsesTheSpokesLastSyncAcrossHubs` |
+
+- **Not unit-tested:** the "errors count as changed" branches.
+- `go test ./controller/...` passes at `86a5dd5a8`.
+
+**Found in the first live run (on `df9239e2e`, after pair 1):**
+- **The base was this hub's own last sync.** If another hub later synced
+  the revision, subsequent drift would have been treated as a new revision
+  and rerun the hooks. The live run didn't hit that case; the code allowed
+  it. Pair 2 fixed it.
+- **The info log line was noisy:** 207 and 236 lines per hub in 15 minutes,
+  one per auto-sync attempt while another hub's sync was in progress (each
+  also a repo-server call).
+
+### Verification
+
+| Run | Image | Result |
+|---|---|---|
+| Single hub, `HUB=hub-a ./repro-r4.sh` | `df9239e2e` | the commit compared mid-sync got a **full** sync with its hook (`03:16:52 rev ba568a9 full`, hook `lab-presync-ba568a9-…`). The log shows the re-check: "Revision ba568a9… has changes since the last synced revision 2d75f1e…". A later partial sync of the same revision re-applied the ConfigMap ("unchanged"): the known after-sync self-heal, not R4 |
+| Three hubs: a commit, then a second commit 30s later during the 120s hooks | `df9239e2e` | after the second commit: a hook Job in all 11 namespaces, generation 35 everywhere. One partial (lab-7) came after its full sync |
+| The same, plus drift | `86a5dd5a8` | after the second commit: **12 operations, 0 partial**, a hook for every app, generation 37 everywhere. lab-7's two syncs are both commits in order: the first commit's sync started at the same second the second commit was pushed, inside the count window. **Drift** (lab-3's ConfigMap edited on the spoke): healed by a **partial** self-heal with **no hook**, generation 37 restored |
+
+The three-hub runs used the same steps as R4's conditions: `./hook-sleep.sh
+120`, then `./bump.sh && ./refresh-both.sh`, `sleep 30`, `./bump.sh &&
+./refresh-both.sh`, 9 minutes, then `SINCE=15m ./ops-count.sh <second
+commit>` (partial counts:
+[`ops-count.sh` @ df9239e2e](https://github.com/ImIOImI/argo-cd/blob/df9239e2e/hack/multi-hub-lab/ops-count.sh)).
+For drift: `kubectl patch cm lab-config` in `lab-3` on the spoke, 2
+minutes, then `./ops-count.sh`. Data: `fixed-single-hub.txt`,
+`fixed-three-hubs-first.txt` and `fixed-three-hubs-and-drift.txt`.
+
 ## Status
 
-Not fixed in the fork yet. The decision is with Troy.
+Fixed in the fork (`86a5dd5a8`), pending upstream #27875 / #28908.
