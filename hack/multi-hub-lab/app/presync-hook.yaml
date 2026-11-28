@@ -16,4 +16,4 @@ spec:
       containers:
         - name: hook
           image: busybox:1.36
-          command: ["sh", "-c", "echo presync from $(hostname); sleep 5"]
+          command: ["sh", "-c", "echo presync from $(hostname); sleep 120"]
