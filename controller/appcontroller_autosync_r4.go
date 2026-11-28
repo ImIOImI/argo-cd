@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 
 	log "github.com/sirupsen/logrus"
 
@@ -25,6 +26,10 @@ func (ctrl *ApplicationController) changedSinceLastSync(ctx context.Context, app
 		return false // nothing to re-check against (multi-source: not covered)
 	}
 	last := op.SyncResult.Revision
+	// With several hubs, the spoke's last sync may be another hub's.
+	if spoke, ok := ctrl.multihubLastSyncedRevision(ctx, app); ok {
+		last = spoke
+	}
 	if last == "" || last == desired {
 		return false
 	}
@@ -44,7 +49,29 @@ func (ctrl *ApplicationController) changedSinceLastSync(ctx context.Context, app
 		return true
 	}
 	if changed {
-		logCtx.Infof("Revision %s has changes since the last synced revision %s (argoproj/argo-cd#27875): a full sync, not already attempted", desired, last)
+		logCtx.Debugf("Revision %s has changes since the last synced revision %s (argoproj/argo-cd#27875): a full sync, not already attempted", desired, last)
 	}
 	return changed
+}
+
+// multihubLastSyncedRevision is the revision of the last completed sync of
+// app on its destination, by any hub: the operation mirrored on the Lease
+// (C3), when it records a finished sync.
+func (ctrl *ApplicationController) multihubLastSyncedRevision(ctx context.Context, app *appv1.Application) (string, bool) {
+	if !ctrl.multihub.Enabled() {
+		return "", false
+	}
+	server, key, err := ctrl.multihubTarget(ctx, app)
+	if err != nil {
+		return "", false
+	}
+	m, ok, err := ctrl.multihub.CurrentOperation(ctx, server, key)
+	if err != nil || !ok || m.Running {
+		return "", false
+	}
+	var state appv1.OperationState
+	if json.Unmarshal(m.State, &state) != nil || state.SyncResult == nil || !state.Phase.Successful() {
+		return "", false
+	}
+	return state.SyncResult.Revision, state.SyncResult.Revision != ""
 }
