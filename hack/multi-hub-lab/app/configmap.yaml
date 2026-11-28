@@ -7,4 +7,4 @@ metadata:
     argocd.argoproj.io/sync-wave: "1"
 data:
   # bump.sh rewrites this line; each push is one "commit N -> N+1" event
-  generation: "28"
+  generation: "29"
