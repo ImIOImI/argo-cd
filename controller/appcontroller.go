@@ -3187,6 +3187,11 @@ func (ctrl *ApplicationController) autoSync(ctx context.Context, app *appv1.Appl
 	// auto-sync with pruning disabled). We need to ensure that we do not keep Syncing an
 	// application in an infinite loop. To detect this, we only attempt the Sync if the revision
 	// and parameter overrides are different from our most recent sync operation.
+	// argoproj/argo-cd#27875 (research R4): "no changes" may have been
+	// computed against a revision compared but never synced.
+	if !shouldCompareRevisions && ctrl.changedSinceLastSync(ctx, app, syncStatus.Revision) {
+		shouldCompareRevisions = true
+	}
 	alreadyAttempted, lastAttemptedRevisions, lastAttemptedPhase := alreadyAttemptedSync(app, desiredRevisions, shouldCompareRevisions)
 	ts.AddCheckpoint("already_attempted_sync_ms")
 	if alreadyAttempted {
