@@ -194,6 +194,11 @@ started.
 
 ## R4. Open: a new commit applied by partial syncs, without hooks
 
+**Update 2026-11-28:** reproduced on stock Argo CD v3.6.1, so it's an
+upstream bug the fork makes more frequent. See
+[2026-11-28-r4-skipped-hooks.md](2026-11-28-r4-skipped-hooks.md).
+
+
 After Demo C's second commit (`4c6e414`: generation 27 and the hook back to
 5s), every app reached generation 27, but:
 

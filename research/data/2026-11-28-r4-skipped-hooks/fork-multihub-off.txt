@@ -1,0 +1,14 @@
+pushed generation 28 at 20:26:31
+hard refresh requested on hub-a at 02:26:32Z
+hub-a: Running waiting for completion of hook batch/Job/lab-presync-4682c1d-presync-1795832794 at 02:26:37Z
+pushed generation 29 at 20:26:48
+hard refresh requested on hub-a at 02:26:54Z
+mid-sync: compared=51479a581a6dffd0317207c5af94c9ded3ea3158 status=OutOfSync op=Running op-rev=4682c1df0b9d9f9e5b8c323a180b69754b3298e6
+first sync done: compared=51479a581a6dffd0317207c5af94c9ded3ea3158 status=Synced op=Succeeded op-rev=51479a581a6dffd0317207c5af94c9ded3ea3158
+after: compared=51479a581a6dffd0317207c5af94c9ded3ea3158 status=Synced op=Succeeded op-rev=51479a581a6dffd0317207c5af94c9ded3ea3158
+== lab-app operations since 2026-11-28T02:26:29 on hub-a
+  02:26:34 rev 4682c1d full
+  02:28:51 rev 51479a5 PARTIAL (no hooks)
+== lab-app hook Jobs since 2026-11-28T02:26:29
+lab-presync-4682c1d-presync-1795832794   2026-11-28T02:26:34Z
+
